@@ -20,9 +20,10 @@ ci/                   GitHub Actions gate template (variables and secrets only, 
 docs/                 ARCHITECTURE, SECURITY, SETUP, VERIFICATION, CURRICULUM_MAP
 ```
 
-All phases are available: 0 orientation, 1 fundamentals, 2 data and files, 3 structure and testing, 4 the
-policy engine, 5 trust and accountability, 6 production automation and the capstone. Still to come: an
-end-to-end fresh-clone verification, then the optional real-cloud phase (`examples/aws`, `examples/gcp`).
+The course is complete: 0 orientation, 1 fundamentals, 2 data and files, 3 structure and testing, 4 the
+policy engine, 5 trust and accountability, 6 production automation and the capstone. An automated test
+plays the entire course in the app and passes the capstone (see [docs/VERIFICATION.md](docs/VERIFICATION.md)).
+Still to come, when you choose: the optional real-cloud phase (`examples/aws`, `examples/gcp`).
 
 ## Try the finished tool
 

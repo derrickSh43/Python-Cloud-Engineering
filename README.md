@@ -8,7 +8,7 @@ tested tool.
 
 | Project | You build | Status |
 |---|---|---|
-| [01 - Cloud Change Control](projects/01-cloud-change-control/) | **Cloud ChangeGate**: Terraform plan evaluation, AWS + GCP security policies, risk classification, signed approvals, audit trail, CLI for CI/CD | all phases playable; optional cloud phase planned (see [build status](projects/01-cloud-change-control/docs/VERIFICATION.md)) |
+| [01 - Cloud Change Control](projects/01-cloud-change-control/) | **Cloud ChangeGate**: Terraform plan evaluation, AWS + GCP security policies, risk classification, signed approvals, audit trail, CLI for CI/CD | **complete and verified offline**; optional real-cloud phase planned (see [build status](projects/01-cloud-change-control/docs/VERIFICATION.md)) |
 
 ## Quick start
 
