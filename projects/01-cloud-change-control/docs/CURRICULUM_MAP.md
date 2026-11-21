@@ -51,7 +51,71 @@ exercise that needs it.
 
 ## Build exercises
 
-Each "build" exercise gives the learner a stub file in `workspace/changegate/` with `TODO`s and a
-focused test file. `python learn.py check <exercise>` runs just those tests against the learner's code.
-At the end, the full suite in `tests/` runs against the learner's workspace
-(`CHANGEGATE_SRC=workspace`) - the same tests the reference passes.
+Learners don't receive ChangeGate up front. `python learn.py workspace init` (run automatically the first
+time it's needed) generates `workspace/` from `reference/`, replacing the body of every symbol below with
+`raise NotImplementedError("TODO(<exercise id>)")` - signatures and docstrings stay. Everything not listed
+(dataclass declarations for config, CLI helpers, the `Provider` registry entries...) is provided, so each
+exercise is focused and the code always imports.
+
+Each exercise has a focused test file in `exercises/tests/` (standard library only - they run before
+pytest is introduced), a task and three graduated hints in `exercises/phaseN.toml`, and a reference
+solution that is simply the original source of its symbols. `python learn.py selftest` proves, for every
+exercise, that its tests **fail** when only the earlier exercises are solved and **pass** once it is solved
+too - so the order always works and no exercise secretly depends on a later one.
+
+The final exercise, the capstone, runs the full suite in `tests/` against the learner's workspace
+(`CHANGEGATE_SRC=workspace`): the same 190+ tests the reference passes.
+
+49 exercises (48 with focused tests, plus the capstone):
+
+| Phase | Exercise | You implement | File |
+|---|---|---|---|
+| 2 | `p2-plan-digest` Fingerprint a plan with SHA-256 | `plan_digest` | `changegate/plan_parser.py` |
+| 2 | `p2-read-plan` Read a plan file safely | `read_plan_bytes` | `changegate/plan_parser.py` |
+| 2 | `p2-decode-plan` Decode plan JSON with useful errors | `decode_plan` | `changegate/plan_parser.py` |
+| 2 | `p2-check-format` Check the plan format version | `check_format` | `changegate/plan_parser.py` |
+| 2 | `p2-canonical` Canonical JSON: same data, same bytes | `canonical_bytes`, `sha256_hex` | `changegate/canonical.py` |
+| 2 | `p2-lists-and-blocks` Normalise messy Terraform values | `as_list`, `first_block` | `changegate/policies/helpers.py` |
+| 2 | `p2-ports` Parse and compare port ranges | `parse_port_range`, `range_includes_any`, `covers_all_ports` | `changegate/policies/helpers.py` |
+| 2 | `p2-json-documents` Read IAM policy documents | `load_json_document`, `statements`, `principal_is_public` | `changegate/policies/helpers.py` |
+| 3 | `p3-action` The Action enum: decoding Terraform actions | `Action.from_terraform`, `Action.is_destructive`, `Action.changes_state` | `changegate/models.py` |
+| 3 | `p3-severity` Ordered severities | `Severity.parse`, `Severity.escalate` | `changegate/models.py` |
+| 3 | `p3-resource-change` ResourceChange: a frozen dataclass | `ResourceChange` | `changegate/models.py` |
+| 3 | `p3-finding` Finding: one policy problem | `Finding` | `changegate/models.py` |
+| 3 | `p3-evaluation` Evaluation: the result of a whole plan | `Evaluation` | `changegate/models.py` |
+| 3 | `p3-providers` A provider registry | `provider_key`, `lookup`, `cloud_for`, `all_stateful_types` | `changegate/providers.py` |
+| 3 | `p3-parse-change` Turn one JSON entry into a ResourceChange | `parse_change` | `changegate/plan_parser.py` |
+| 3 | `p3-parse-plan` Parse a whole plan | `parse_plan`, `load_plan` | `changegate/plan_parser.py` |
+| 4 | `p4-networks` Is this CIDR the whole internet? | `is_world`, `any_world` | `changegate/policies/helpers.py` |
+| 4 | `p4-config-validation` Validate config values | `_reject_unknown`, `_severity`, `_str_list` | `changegate/config.py` |
+| 4 | `p4-config-risk` Load the [risk] section | `_risk` | `changegate/config.py` |
+| 4 | `p4-config-load` Find and load the config file | `resolve_path`, `load_config` | `changegate/config.py` |
+| 4 | `p4-policy-base` The Policy base class | `Policy.applies_to`, `Policy.finding` | `changegate/policies/base.py` |
+| 4 | `p4-registry` Discover policies with a decorator | `register`, `load_policies` | `changegate/policies/base.py` |
+| 4 | `p4-run-policies` Run policies and fail closed | `run_policies` | `changegate/policies/base.py` |
+| 4 | `p4-destroy-stateful` Policy: deleting data-holding resources | `DestroyStatefulResource.stateful_types`, `DestroyStatefulResource.check` | `changegate/policies/common.py` |
+| 4 | `p4-required-tags` Policy: required tags and labels | `RequiredTags.check` | `changegate/policies/common.py` |
+| 4 | `p4-open-ingress` Shared logic: open to the internet | `OpenIngressPolicy.judge` | `changegate/policies/network.py` |
+| 4 | `p4-aws-s3` AWS policies: public S3 | `S3PublicAcl.check`, `S3PublicAccessBlock.check`, `S3PublicBucketPolicy.check` | `changegate/policies/aws.py` |
+| 4 | `p4-aws-security-groups` AWS policy: security groups | `SecurityGroupOpenIngress.check`, `SecurityGroupOpenIngress._rule` | `changegate/policies/aws.py` |
+| 4 | `p4-aws-storage` AWS policies: encryption and public databases | `UnencryptedStorage.check`, `RdsPubliclyAccessible.check` | `changegate/policies/aws.py` |
+| 4 | `p4-aws-iam` AWS policy: wildcard IAM permissions | `IamWildcard.check` | `changegate/policies/aws.py` |
+| 4 | `p4-gcp-storage` GCP policies: public buckets | `_members`, `_roles`, `GcsPublicIam.check`, `GcsUniformAccess.check` | `changegate/policies/gcp.py` |
+| 4 | `p4-gcp-network` GCP policies: firewalls and Cloud SQL | `FirewallOpenIngress.check`, `SqlPublicNetwork.check` | `changegate/policies/gcp.py` |
+| 4 | `p4-gcp-iam` GCP policy: basic roles and public grants | `IamPrimitiveOrPublicRole.check` | `changegate/policies/gcp.py` |
+| 4 | `p4-risk` Classify risk and decide | `classify`, `decide` | `changegate/risk.py` |
+| 4 | `p4-evaluator` The evaluation pipeline | `evaluate_changes`, `evaluate_bytes`, `evaluate_file` | `changegate/evaluator.py` |
+| 5 | `p5-approval-format` Approvals as JSON, with timezones | `_iso`, `_parse_time`, `Approval.payload`, `Approval.to_dict`, `Approval.from_dict` | `changegate/approvals.py` |
+| 5 | `p5-signatures` Keys and HMAC signatures | `load_key`, `compute_signature`, `sign`, `signature_valid` | `changegate/approvals.py` |
+| 5 | `p5-create-approval` Create an approval | `create_approval` | `changegate/approvals.py` |
+| 5 | `p5-approval-rules` The rules for a valid approval | `approval_problem` | `changegate/approvals.py` |
+| 5 | `p5-check-approvals` Count valid approvals | `check_approvals` | `changegate/approvals.py` |
+| 5 | `p5-approval-files` Save and load approval files | `write_approval`, `load_approvals` | `changegate/approvals.py` |
+| 5 | `p5-audit-append` An append-only, hash-chained log | `record_hash`, `AuditLog.records`, `AuditLog.head`, `AuditLog.append` | `changegate/audit.py` |
+| 5 | `p5-audit-verify` Verify the audit chain | `AuditLog.verify` | `changegate/audit.py` |
+| 6 | `p6-report-text` Plain-text report | `final_outcome`, `render_text` | `changegate/report.py` |
+| 6 | `p6-report-formats` JSON and Markdown reports | `render_json`, `render_markdown` | `changegate/report.py` |
+| 6 | `p6-cli-parser` Command-line arguments with argparse | `build_parser` | `changegate/cli.py` |
+| 6 | `p6-cli-commands` The CLI commands and exit codes | `exit_code_for`, `cmd_evaluate`, `cmd_approve`, `cmd_verify`, `cmd_audit` | `changegate/cli.py` |
+| 6 | `p6-cli-main` main(): one place for errors | `main` | `changegate/cli.py` |
+| 6 | `p6-capstone` Capstone: the full ChangeGate test suite | the full suite passes | - |

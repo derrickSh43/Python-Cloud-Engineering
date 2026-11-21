@@ -12,12 +12,14 @@ Start it from the repository root with `python learn.py`.
 project.toml          project metadata for the platform
 curriculum/           the lessons (phase00_orientation ... phase06_*)
 reference/            the complete ChangeGate implementation (the destination - try first, peek later)
+exercises/            48 build exercises: tasks + graduated hints (phaseN.toml) and focused tests (tests/)
+workspace/            YOUR copy of ChangeGate, generated with every exercise as a TODO (git-ignored)
 tests/                the full ChangeGate test suite (runs against reference/ or your workspace/)
 sample_data/          sample AWS/GCP plans + example config (all placeholders)
 docs/                 ARCHITECTURE, SECURITY, SETUP, VERIFICATION, CURRICULUM_MAP
 ```
 
-Coming in the next milestones: `workspace/` (your stub files with TODOs), per-exercise tests and hints,
+Coming in the next milestones: the Phase 1-6 lessons that lead into each build exercise,
 `examples/aws` and `examples/gcp` Terraform, and CI templates.
 
 ## Try the finished tool

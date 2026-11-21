@@ -30,11 +30,17 @@ Use a terminal at least 90 characters wide.
 | `python learn.py --unlock-all` | open every phase (instructors / reviewers) |
 | `python learn.py selftest` | validate every lesson and exercise |
 | `python learn.py reset` | erase progress for the current project |
+| `python learn.py exercises` | list build exercises and your progress |
+| `python learn.py show ID` / `check [ID]` / `hint ID` / `solution ID` | work on a build exercise |
+| `python learn.py workspace reset FILE` | restore one of your workspace files to its starting state |
 
 ## How a course works
 
 - **Phases** contain short **lessons** and end with a **checkpoint** that unlocks the next phase.
 - Lessons mix explanations, **live examples**, **questions**, **"what will this print?"** and **exercises**.
+- **Build exercises** have you write the real application piece by piece in your own editor. Your
+  `workspace/` starts as the finished tool with every piece you'll write left as a TODO;
+  `python learn.py check <id>` runs focused tests against your code and explains what's wrong.
 - **Hints are graduated**: each `:hint` reveals more. Reference solutions unlock only after you've used
   every hint or made several attempts.
 - Finished lessons become **reference cards**; **review practice** mixes old questions so they stick.

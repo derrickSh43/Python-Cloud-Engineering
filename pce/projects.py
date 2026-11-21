@@ -48,7 +48,13 @@ class Project:
         return [(phase, lesson) for phase in self.phases for lesson in phase["lessons"]]
 
 
-def discover(projects_dir=PROJECTS_DIR):
+def default_dir():
+    """projects/ in the repository, or $PCE_PROJECTS_DIR (used by the platform's own tests)."""
+    return os.environ.get("PCE_PROJECTS_DIR") or PROJECTS_DIR
+
+
+def discover(projects_dir=None):
+    projects_dir = projects_dir or default_dir()
     projects = []
     if not os.path.isdir(projects_dir):
         return projects
@@ -69,7 +75,7 @@ def discover(projects_dir=PROJECTS_DIR):
     return projects
 
 
-def find(project_id, projects_dir=PROJECTS_DIR):
+def find(project_id, projects_dir=None):
     for project in discover(projects_dir):
         if project.id == project_id or os.path.basename(project.path) == project_id:
             return project

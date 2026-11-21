@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from . import ui
+from . import exercise_cli
 from .editor import Editor, print_help
 from .errors import explain_error
 from .grader import grade, describe_output_difference, normalize
@@ -38,6 +39,7 @@ class App:
         self.profile = Profile.load()
         self.project = None
         self.mistakes = 0  # mistakes in the lesson / checkpoint being worked on
+        self._session = None
 
     @property
     def phases(self):
@@ -378,7 +380,7 @@ Errors are information, not failure. Read them - the app explains each one.
     # ================================================================ steps
     def do_step(self, step, ctx):
         handler = {"text": self.step_text, "example": self.step_example, "quiz": self.step_quiz,
-                   "predict": self.step_predict, "code": self.step_code}[step["type"]]
+                   "predict": self.step_predict, "code": self.step_code, "build": self.step_build}[step["type"]]
         return handler(step, ctx)
 
     def nav(self, ctx, extra=""):
@@ -580,6 +582,67 @@ Errors are information, not failure. Read them - the app explains each one.
             print(style("  (There is usually more than one correct way to solve a problem.)", "grey"))
             ui.pause()
         return "next"
+
+    def session(self):
+        if self._session is None or self._session.project is not self.project:
+            self._session = exercise_cli.Session(self.project, self.profile)
+        return self._session
+
+    def step_build(self, step, ctx):
+        """A build exercise: the learner edits a real file in their workspace and runs its tests."""
+        session = self.session()
+        exercise = session.ex_set.get(step["exercise"])
+        print()
+        print(style("  ⚒ BUILD: " + exercise.title.upper(), "orange", "bold"))
+        if step["intro"]:
+            ui.render(step["intro"])
+            print()
+        session.ensure_workspace()
+        session.show(exercise)
+        print()
+        ui.render("Edit the file in your own editor (VS Code, Notepad, ...), save it, then press **c** to run the "
+                  "checks. You can also run `python learn.py check %s` from another terminal." % exercise.id)
+        while True:
+            rec = session.record(exercise.id)
+            options = ["c ▸ check", "h ▸ hint", "o ▸ open file"]
+            if session.solution_unlocked(exercise) and exercise.kind == "unit":
+                options.append("s ▸ solution")
+            if rec["passed"]:
+                options.insert(0, "Enter ▸ continue")
+            if ctx.get("can_back"):
+                options.append("b ▸ back")
+            options.append(":menu ▸ save & exit")
+            answer = ui.ask(style("  " + "    ".join(options) + " ", "grey", prompt=True)).strip().lower()
+            if answer == "c":
+                print()
+                passed_before = rec["passed"]
+                if session.check(exercise):
+                    if not passed_before:
+                        self.record_build(ctx, rec)
+                else:
+                    self.mistakes += 1
+            elif answer == "h":
+                print()
+                session.hint(exercise)
+            elif answer == "o":
+                print(style("  " + exercise_cli.open_in_editor(session.path_for(exercise)), "cyan"))
+            elif answer == "s":
+                print()
+                if session.solution(exercise, confirm=ui.confirm):
+                    ctx["assisted"] = True
+            elif answer == "b" and ctx.get("can_back"):
+                return "back"
+            elif answer == "" and rec["passed"]:
+                return "next"
+            elif answer == "":
+                print(style("  Run the checks with c. Come back any time with :menu - your work is saved in your files.",
+                            "grey"))
+            print()
+
+    def record_build(self, ctx, rec):
+        if ctx.get("key"):
+            self.prog.done_steps.add(ctx["key"])
+        self.profile.save()
 
     def reveal_solution(self, step, ctx):
         prompt = "Show the reference solution and move on?"

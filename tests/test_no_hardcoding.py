@@ -57,3 +57,16 @@ def test_local_config_files_are_gitignored():
     ignore = (ROOT / ".gitignore").read_text()
     for pattern in ("changegate.toml", "*.tfvars", "backend.hcl", ".progress/", "*.tfstate"):
         assert pattern in ignore, "add %s to .gitignore" % pattern
+
+
+def test_no_source_file_is_gitignored():
+    """A too-broad .gitignore pattern once hid changegate/report.py from the repository."""
+    try:
+        ignored = subprocess.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard"], cwd=ROOT,
+                                 capture_output=True, text=True, check=True).stdout.split()
+    except (OSError, subprocess.CalledProcessError):
+        return  # not a git checkout (e.g. a downloaded ZIP)
+    hidden = [f for f in ignored if f.endswith((".py", ".toml", ".md", ".json"))
+              and not (set(Path(f).parts) & (SKIP_DIRS | {"workspace"}))
+              and not f.endswith("changegate-audit.jsonl")]
+    assert not hidden, "these source files are ignored by .gitignore: %s" % hidden

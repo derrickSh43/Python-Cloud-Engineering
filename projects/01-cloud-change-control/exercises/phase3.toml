@@ -1,0 +1,200 @@
+# Phase 3 - Structure: enums, dataclasses, a provider registry, and turning JSON into objects.
+
+[[exercise]]
+id = "p3-action"
+phase = 3
+title = "The Action enum: decoding Terraform actions"
+file = "changegate/models.py"
+stubs = ["Action.from_terraform", "Action.is_destructive", "Action.changes_state"]
+test = "test_p3_action.py"
+task = '''
+The `Action` enum's members are already defined. Implement its three methods:
+
+- `Action.from_terraform(actions)` (a classmethod): Terraform gives a list such as `["create"]`,
+  `["update"]`, `["delete"]`, `["read"]`, `["no-op"]`, or for a replacement `["delete", "create"]`
+  (in either order). Return the matching member (`REPLACE` for delete+create). Anything else - an
+  empty list, an unknown word, `["create", "update"]` - raises `ValueError`.
+- `is_destructive` (a property): True for `DELETE` and `REPLACE`.
+- `changes_state` (a property): False for `READ` and `NO_OP`, True otherwise.
+'''
+hints = [
+  "`set(actions) == {\"delete\", \"create\"}` detects a replacement regardless of order. For a single action, `cls(actions[0])` looks a member up by its value.",
+  "Only accept a single action if it is in `TERRAFORM_SINGLE_ACTIONS` (Terraform never sends \"replace\" on its own). Everything else falls through to `raise ValueError(...)`.",
+  "is_destructive: `return self in (Action.DELETE, Action.REPLACE)`; changes_state: `return self not in (Action.READ, Action.NO_OP)`",
+]
+
+[[exercise]]
+id = "p3-severity"
+phase = 3
+title = "Ordered severities"
+file = "changegate/models.py"
+stubs = ["Severity.parse", "Severity.escalate"]
+test = "test_p3_severity.py"
+task = '''
+`Severity` is an `IntEnum` (LOW=1 ... CRITICAL=4), so severities compare and `max()` naturally.
+Implement:
+
+- `Severity.parse(value)` (classmethod): accept a `Severity` (return it unchanged) or a string in any
+  case with surrounding spaces (`" High "` → `HIGH`). Unknown text raises `ValueError` whose message
+  includes the bad value and the allowed names.
+- `escalate(levels=1)`: the severity `levels` steps higher, never above `CRITICAL`.
+'''
+hints = [
+  "Enum members can be looked up by name with square brackets: `Severity[\"HIGH\"]`. An unknown name raises KeyError.",
+  "Normalise with `str(value).strip().upper()`. Convert the KeyError into a ValueError with `raise ValueError(...) from None`.",
+  "escalate: `return Severity(min(Severity.CRITICAL, self + levels))` - IntEnum members are integers.",
+]
+
+[[exercise]]
+id = "p3-resource-change"
+phase = 3
+title = "ResourceChange: a frozen dataclass"
+file = "changegate/models.py"
+stubs = ["ResourceChange"]
+test = "test_p3_resource_change.py"
+task = '''
+Write the `ResourceChange` class as a **frozen dataclass** with these fields, in this order:
+
+| field | type | default |
+|---|---|---|
+| `address` | `str` | required |
+| `type` | `str` | required |
+| `name` | `str` | required |
+| `provider` | `str` | required (short name, e.g. `"aws"`) |
+| `cloud` | `str` | required (`"aws"`, `"gcp"` or `"other"`) |
+| `action` | `Action` | required |
+| `before` | `dict \| None` | `None` |
+| `after` | `dict \| None` | `None` |
+| `after_unknown` | `dict` | empty dict (use `field(default_factory=dict)`) |
+| `module` | `str \| None` | `None` |
+
+And two members:
+
+- `attributes` (property): the values policies inspect - `before` for a `DELETE`, otherwise `after`;
+  return `{}` instead of `None`.
+- `is_unknown(key) -> bool`: True when `after_unknown[key]` is truthy (Terraform can't know the
+  value until apply).
+'''
+hints = [
+  "Decorate the class with `@dataclass(frozen=True)` and list fields as `name: type = default` lines. Mutable defaults like `{}` must use `field(default_factory=dict)`.",
+  "A property is a method decorated with `@property`. Compare `self.action == Action.DELETE`; `self.before or {}` turns None into an empty dict.",
+  "attributes: `if self.action == Action.DELETE: return self.before or {}` then `return self.after or {}`. is_unknown: `return bool(self.after_unknown.get(key))`.",
+]
+
+[[exercise]]
+id = "p3-finding"
+phase = 3
+title = "Finding: one policy problem"
+file = "changegate/models.py"
+stubs = ["Finding"]
+test = "test_p3_finding.py"
+task = '''
+Write `Finding` as a **frozen dataclass** with fields `policy_id: str`, `severity: Severity`,
+`address: str`, `message: str` and `remediation: str = ""`.
+
+Add `to_dict()` returning a plain dict with the same five keys, where `severity` is the **name as a
+string** (e.g. `"HIGH"`) so it can be written as JSON.
+'''
+hints = [
+  "Same pattern as ResourceChange: `@dataclass(frozen=True)` then one annotated line per field.",
+  "`str(self.severity)` gives the name, because Severity defines `__str__`.",
+  "return {\"policy_id\": self.policy_id, \"severity\": str(self.severity), \"address\": self.address, \"message\": self.message, \"remediation\": self.remediation}",
+]
+
+[[exercise]]
+id = "p3-evaluation"
+phase = 3
+title = "Evaluation: the result of a whole plan"
+file = "changegate/models.py"
+stubs = ["Evaluation"]
+test = "test_p3_evaluation.py"
+task = '''
+Write `Evaluation` as a **frozen dataclass** with fields (all required, in order):
+`plan_sha256: str`, `changes: tuple[ResourceChange, ...]`, `findings: tuple[Finding, ...]`,
+`risk: Severity`, `decision: Decision`, `reasons: tuple[str, ...]`.
+
+Members:
+
+- `action_counts` (property): a dict counting changes by action value, e.g. `{"create": 2, "delete": 1}`.
+- `to_dict()`: a JSON-ready dict with keys `plan_sha256`, `risk` (name string), `decision` (value
+  string, e.g. `"block"`), `reasons` (list), `summary` (`{"resources": <number of changes>,
+  "actions": <action_counts>, "findings": <number of findings>}`), `findings` (list of
+  `Finding.to_dict()`), and `changes` (list of `{"address", "type", "cloud", "action"}` dicts, action
+  as its value string).
+'''
+hints = [
+  "Use a dict and `counts[key] = counts.get(key, 0) + 1` for action_counts, keyed by `change.action.value`.",
+  "`str(self.risk)` gives `\"HIGH\"`, `str(self.decision)` gives `\"block\"`. Build the lists with comprehensions.",
+  "\"changes\": [{\"address\": c.address, \"type\": c.type, \"cloud\": c.cloud, \"action\": c.action.value} for c in self.changes]",
+]
+
+[[exercise]]
+id = "p3-providers"
+phase = 3
+title = "A provider registry"
+file = "changegate/providers.py"
+stubs = ["provider_key", "lookup", "cloud_for", "all_stateful_types"]
+test = "test_p3_providers.py"
+task = '''
+`providers.py` already defines the `Provider` dataclass, the AWS and Google providers and
+`register()`. Implement the lookups:
+
+- `provider_key(provider_name)`: the last path segment - `"registry.terraform.io/hashicorp/aws"` →
+  `"aws"`; `"aws"` → `"aws"`; a trailing slash is ignored.
+- `lookup(provider_name)`: the registered `Provider` for that key, or `None`.
+- `cloud_for(provider_name)`: the provider's `cloud`, or `"other"` if unknown.
+- `all_stateful_types()`: a `frozenset` of every registered provider's `stateful_types` combined.
+'''
+hints = [
+  "`text.rstrip(\"/\").rsplit(\"/\", 1)[-1]` returns the part after the last slash.",
+  "The registry is the module-level dict `_REGISTRY`. `dict.get(key)` returns None when missing.",
+  "all_stateful_types: start with `types = set()`, then `types |= provider.stateful_types` for each provider in `_REGISTRY.values()`, and return `frozenset(types)`.",
+]
+
+[[exercise]]
+id = "p3-parse-change"
+phase = 3
+title = "Turn one JSON entry into a ResourceChange"
+file = "changegate/plan_parser.py"
+stubs = ["parse_change"]
+test = "test_p3_parse_change.py"
+task = '''
+Implement `parse_change(entry: dict) -> ResourceChange` for one item of `resource_changes`.
+
+- Read `entry["address"]`, `entry["change"]` and `entry["change"]["actions"]`. If any is missing (or
+  `entry` isn't a dict), raise `PlanError` whose message contains `missing`.
+- Convert actions with `Action.from_terraform`; if that raises `ValueError`, raise
+  `PlanError("<address>: <original message>")`.
+- `type`, `name` default to `""`. `provider` is `providers.provider_key(provider_name)` and `cloud` is
+  `providers.cloud_for(provider_name)`; if there's no `provider_name`, use `""` and `"other"`.
+- `before`, `after` come from the change (may be missing → `None`); `after_unknown` defaults to `{}`
+  (also when it is `null`); `module` comes from `entry.get("module_address")`.
+'''
+hints = [
+  "Put the three required lookups in one `try:` and catch `(KeyError, TypeError)` - TypeError covers `entry` not being a dict.",
+  "`change.get(\"after_unknown\") or {}` handles both a missing key and an explicit null.",
+  "Finish with `return ResourceChange(address=address, type=entry.get(\"type\", \"\"), name=..., provider=..., cloud=..., action=action, before=change.get(\"before\"), after=change.get(\"after\"), after_unknown=..., module=entry.get(\"module_address\"))`",
+]
+
+[[exercise]]
+id = "p3-parse-plan"
+phase = 3
+title = "Parse a whole plan"
+file = "changegate/plan_parser.py"
+stubs = ["parse_plan", "load_plan"]
+test = "test_p3_parse_plan.py"
+task = '''
+Implement:
+
+- `parse_plan(plan, include_data_sources=False) -> list[ResourceChange]`: call `check_format(plan)`;
+  read `resource_changes` (missing or `null` means no changes, but anything other than a list - even
+  an empty dict - raises `PlanError` mentioning `must be a list`). Skip entries whose `mode` is
+  `"data"` unless `include_data_sources` is True. Keep `no-op` changes (policies skip them later).
+  Return the parsed changes in plan order.
+- `load_plan(path)`: read, decode and parse a file; return a tuple `(raw_bytes, plan_dict, changes)`.
+'''
+hints = [
+  "Check `entries is None` explicitly - `plan.get(...) or []` would wrongly accept `{}`.",
+  "Loop over entries; `continue` when `entry.get(\"mode\") == \"data\"` and data sources aren't wanted; otherwise append `parse_change(entry)`.",
+  "load_plan: `raw = read_plan_bytes(path); plan = decode_plan(raw); return raw, plan, parse_plan(plan)`",
+]

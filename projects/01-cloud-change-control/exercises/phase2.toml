@@ -1,0 +1,180 @@
+# Phase 2 - Data and files. Pure functions that read and reshape data.
+
+[[exercise]]
+id = "p2-plan-digest"
+phase = 2
+title = "Fingerprint a plan with SHA-256"
+file = "changegate/plan_parser.py"
+stubs = ["plan_digest"]
+test = "test_p2_plan_digest.py"
+task = '''
+Implement `plan_digest(raw: bytes) -> str` in `changegate/plan_parser.py`.
+
+Return the **SHA-256 hex digest** of the exact bytes you are given. Approvals will later be tied to
+this value, so the same bytes must always give the same 64-character lowercase hex string, and
+changing a single byte must change it.
+'''
+hints = [
+  "The `hashlib` module (already imported) has a `sha256` function that accepts bytes.",
+  "`hashlib.sha256(raw)` builds a hash object. Hash objects have a `.hexdigest()` method.",
+  "`return hashlib.sha256(raw).hexdigest()`",
+]
+
+[[exercise]]
+id = "p2-read-plan"
+phase = 2
+title = "Read a plan file safely"
+file = "changegate/plan_parser.py"
+stubs = ["read_plan_bytes"]
+test = "test_p2_read_plan.py"
+task = '''
+Implement `read_plan_bytes(path) -> bytes`.
+
+- Accept a string or a `pathlib.Path`, and return the file's contents as **bytes** (not text: the
+  digest must be computed on the exact bytes).
+- If the file doesn't exist, raise `PlanError("plan file not found: <path>")`.
+- If the path is a directory, raise `PlanError("expected a plan file but got a directory: <path>")`.
+- Use `raise ... from None` so the learner-facing error isn't buried under Python's original traceback.
+'''
+hints = [
+  "Wrap the input with `Path(path)` so strings and Path objects behave the same. `Path` has a `read_bytes()` method.",
+  "Check `path.is_dir()` first (reading a directory raises different errors on different operating systems). Reading a missing file raises `FileNotFoundError`: catch it with `try/except` and raise `PlanError` instead.",
+  "path = Path(path); if path.is_dir(): raise PlanError(\"expected a plan file but got a directory: %s\" % path)  then  try: return path.read_bytes()  except FileNotFoundError: raise PlanError(\"plan file not found: %s\" % path) from None",
+]
+
+[[exercise]]
+id = "p2-decode-plan"
+phase = 2
+title = "Decode plan JSON with useful errors"
+file = "changegate/plan_parser.py"
+stubs = ["decode_plan"]
+test = "test_p2_decode_plan.py"
+task = '''
+Implement `decode_plan(raw: bytes) -> dict`.
+
+- Decode the bytes as UTF-8, **ignoring a leading byte-order mark** (use the `"utf-8-sig"` codec),
+  then parse the JSON.
+- Not UTF-8 → `PlanError` whose message mentions `UTF-8` (people often pass the binary plan file
+  instead of `terraform show -json` output).
+- Not valid JSON → `PlanError` starting with `plan is not valid JSON` and including the line and column.
+- Valid JSON that isn't an object (e.g. a list) → `PlanError("plan JSON must be an object at the top level")`.
+'''
+hints = [
+  "`raw.decode(\"utf-8-sig\")` turns bytes into text and drops a BOM if present. `json.loads(text)` parses it.",
+  "Decoding failures raise `UnicodeDecodeError`; parsing failures raise `json.JSONDecodeError`, which has `.lineno`, `.colno` and `.msg`. Check the result with `isinstance(data, dict)`.",
+  "try: data = json.loads(raw.decode(\"utf-8-sig\"))  except UnicodeDecodeError: raise PlanError(\"plan is not UTF-8 text ...\") from None  except json.JSONDecodeError as e: raise PlanError(\"plan is not valid JSON (line %d, column %d): %s\" % (e.lineno, e.colno, e.msg)) from None",
+]
+
+[[exercise]]
+id = "p2-check-format"
+phase = 2
+title = "Check the plan format version"
+file = "changegate/plan_parser.py"
+stubs = ["check_format"]
+test = "test_p2_check_format.py"
+task = '''
+Implement `check_format(plan: dict) -> None`.
+
+Terraform's JSON has a `format_version` like `"1.2"`. ChangeGate supports major version
+`SUPPORTED_MAJOR_FORMAT` (`"1"`).
+
+- Missing `format_version` → `PlanError` mentioning `format_version`.
+- A different major version (e.g. `"2.0"`) → `PlanError` starting with `unsupported plan format_version`.
+- Otherwise return `None` (do nothing).
+
+Compare as text: the version might arrive as `"1.2"` or even the number `1.2`.
+'''
+hints = [
+  "Use `plan.get(\"format_version\")` so a missing key gives `None` instead of a KeyError.",
+  "`str(version).split(\".\")[0]` gives the major part as a string.",
+  "version = plan.get(\"format_version\"); if version is None: raise PlanError(...); if str(version).split(\".\")[0] != SUPPORTED_MAJOR_FORMAT: raise PlanError(\"unsupported plan format_version %s ...\" % version)",
+]
+
+[[exercise]]
+id = "p2-canonical"
+phase = 2
+title = "Canonical JSON: same data, same bytes"
+file = "changegate/canonical.py"
+stubs = ["canonical_bytes", "sha256_hex"]
+test = "test_p2_canonical.py"
+task = '''
+Implement both functions in `changegate/canonical.py`.
+
+- `canonical_bytes(data) -> bytes`: JSON-encode `data` with keys sorted, no extra whitespace
+  (separators `","` and `":"`), and non-ASCII characters kept as-is (`ensure_ascii=False`), then
+  encode as UTF-8. Two dicts with the same contents in a different order must give identical bytes.
+- `sha256_hex(data) -> str`: the SHA-256 hex digest of `canonical_bytes(data)`.
+'''
+hints = [
+  "`json.dumps` has keyword arguments `sort_keys`, `separators` and `ensure_ascii`.",
+  "`json.dumps(data, sort_keys=True, separators=(\",\", \":\"), ensure_ascii=False)` returns a str; call `.encode(\"utf-8\")` on it.",
+  "sha256_hex is one line: `return hashlib.sha256(canonical_bytes(data)).hexdigest()`",
+]
+
+[[exercise]]
+id = "p2-lists-and-blocks"
+phase = 2
+title = "Normalise messy Terraform values"
+file = "changegate/policies/helpers.py"
+stubs = ["as_list", "first_block"]
+test = "test_p2_lists_and_blocks.py"
+task = '''
+Terraform values are inconsistent: an attribute can be `null`, a single value, or a list. Nested
+blocks (like `settings`) appear as a list holding one object. Implement in `changegate/policies/helpers.py`:
+
+- `as_list(value) -> list`: `None` → `[]`; a list/tuple/set/frozenset → a list of its items;
+  anything else → a one-item list `[value]`. (A string is a single value, not a list of characters.)
+- `first_block(attrs, key) -> dict`: the first item of `attrs[key]` if it's a dict, else `{}`.
+  `attrs` itself may be `None`, and the key may be missing.
+'''
+hints = [
+  "Check `value is None` first, then `isinstance(value, (list, tuple, set, frozenset))`.",
+  "In first_block, `(attrs or {}).get(key)` is safe even when attrs is None. Pass the result through `as_list`.",
+  "blocks = as_list((attrs or {}).get(key)); return blocks[0] if blocks and isinstance(blocks[0], dict) else {}",
+]
+
+[[exercise]]
+id = "p2-ports"
+phase = 2
+title = "Parse and compare port ranges"
+file = "changegate/policies/helpers.py"
+stubs = ["parse_port_range", "range_includes_any", "covers_all_ports"]
+test = "test_p2_ports.py"
+task = '''
+Firewall rules describe ports as `22`, `"22"` or `"8000-8080"`. Implement:
+
+- `parse_port_range(value) -> tuple[int, int]`: `"22"` → `(22, 22)`, `443` → `(443, 443)`,
+  `"8000-8080"` → `(8000, 8080)`. Surrounding spaces are allowed.
+- `range_includes_any(port_range, ports) -> list[int]`: the ports from `ports` that fall inside the
+  inclusive range, **sorted**.
+- `covers_all_ports(port_range) -> bool`: True when the range starts at 0 or 1 and ends at 65535 or above.
+'''
+hints = [
+  "Convert to text with `str(value).strip()`. If it contains `-`, split it once into low and high.",
+  "For range_includes_any, a comprehension with a chained comparison works: `low <= p <= high`.",
+  "covers_all_ports: `return port_range[0] <= 1 and port_range[1] >= 65535`",
+]
+
+[[exercise]]
+id = "p2-json-documents"
+phase = 2
+title = "Read IAM policy documents"
+file = "changegate/policies/helpers.py"
+stubs = ["load_json_document", "statements", "principal_is_public"]
+test = "test_p2_json_documents.py"
+task = '''
+IAM policies arrive inside plans as **JSON strings within JSON**. Implement:
+
+- `load_json_document(value) -> dict | None`: `None` or `""` → `None` (value not known yet); a dict is
+  returned unchanged; a string is parsed with `json.loads`. If the parsed value isn't a dict, raise
+  `ValueError`. Invalid JSON may raise `json.JSONDecodeError` (let it propagate).
+- `statements(document)`: a **generator** yielding each dict in `document["Statement"]`. `Statement`
+  may be a single dict, a list, or missing; skip anything that isn't a dict.
+- `principal_is_public(principal) -> bool`: True for `"*"`, or a dict where any value is `"*"` or a
+  list containing `"*"` (e.g. `{"AWS": "*"}`, `{"AWS": ["*"]}`). Everything else is False.
+'''
+hints = [
+  "A generator function uses `yield` instead of `return`. `as_list(document.get(\"Statement\"))` handles single-or-list.",
+  "For principal_is_public, `as_list(v)` turns `\"*\"` and `[\"*\"]` into lists, so `\"*\" in as_list(v)` works for both.",
+  "if principal == \"*\": return True; if isinstance(principal, dict): return any(\"*\" in as_list(v) for v in principal.values()); return False",
+]

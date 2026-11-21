@@ -231,15 +231,37 @@ def render(text, indent=2):
         elif stripped == "":
             flush()
             print()
+        elif stripped.startswith("|"):
+            # a markdown table: gather its rows, drop the |---| separator, align the columns
+            flush()
+            rows = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                row = lines[i].strip()
+                if not re.fullmatch(r"\|[\s|:-]+\|", row):
+                    rows.append([c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", row)[1:-1]])
+                i += 1
+            i -= 1
+            shown = [[_inline(c) for c in row] for row in rows]
+            widths = [max(visible_len(r[n]) for r in shown if n < len(r)) for n in range(max(map(len, shown)))]
+            for row in shown:
+                cells = [c + " " * (widths[n] - visible_len(c)) for n, c in enumerate(row)]
+                print(pad + "  " + style(" │ ", "grey").join(cells).rstrip())
         else:
             bullet = re.match(r"(\s*)([-*]|\d+[.)])\s+(.*)", line)
             if bullet:
                 flush()
+                item = bullet.group(3)
+                # continuation lines: indented deeper than the bullet and not a new bullet
+                while i + 1 < len(lines) and lines[i + 1].strip() and \
+                        len(lines[i + 1]) - len(lines[i + 1].lstrip()) > len(bullet.group(1)) and \
+                        not re.match(r"\s*([-*]|\d+[.)])\s+", lines[i + 1]):
+                    i += 1
+                    item += " " + lines[i].strip()
                 lead = pad + bullet.group(1)
                 mark = "•" if bullet.group(2) in "-*" else bullet.group(2)
                 first = lead + style(mark, "gold") + " "
                 rest = lead + " " * (len(mark) + 1)
-                wrapped = textwrap.wrap(_protect(bullet.group(3)), w - len(rest) + len(pad)) or [""]
+                wrapped = textwrap.wrap(_protect(item), w - len(rest) + len(pad)) or [""]
                 print(first + _inline(wrapped[0]))
                 for extra in wrapped[1:]:
                     print(rest + _inline(extra))

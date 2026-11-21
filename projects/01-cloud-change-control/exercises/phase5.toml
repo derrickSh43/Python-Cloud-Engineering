@@ -1,0 +1,195 @@
+# Phase 5 - Trust: signed approvals and a tamper-evident audit log.
+
+[[exercise]]
+id = "p5-approval-format"
+phase = 5
+title = "Approvals as JSON, with timezones"
+file = "changegate/approvals.py"
+stubs = ["_iso", "_parse_time", "Approval.payload", "Approval.to_dict", "Approval.from_dict"]
+test = "test_p5_approval_format.py"
+task = '''
+- `_iso(moment) -> str`: naive datetimes (no tzinfo) → `ApprovalError`. Otherwise convert to UTC and
+  format to seconds with a `Z` suffix: `"2026-03-01T12:00:00Z"`.
+- `_parse_time(text, where) -> datetime`: parse ISO-8601 (accept a trailing `Z`). Unparseable →
+  `ApprovalError` containing `not an ISO-8601 timestamp`; no timezone → `ApprovalError` containing
+  `timezone`.
+- `Approval.payload()`: the signed fields: `version` (`FORMAT_VERSION`), `plan_sha256`, `approver`,
+  `risk` (name string), `issued_at`/`expires_at` (via `_iso`), `comment`.
+- `Approval.to_dict()`: the payload plus `signature`.
+- `Approval.from_dict(data)` (classmethod): non-mapping → `ApprovalError`; any of `version`,
+  `plan_sha256`, `approver`, `risk`, `issued_at`, `expires_at`, `signature` missing → `ApprovalError`
+  starting `approval is missing:`; wrong version → `ApprovalError` containing `unsupported`; bad risk →
+  `ApprovalError`. `comment` defaults to `""`.
+'''
+hints = [
+  "`moment.astimezone(timezone.utc).isoformat(timespec=\"seconds\")` ends with `+00:00` - replace that with `Z`.",
+  "`datetime.fromisoformat(text.replace(\"Z\", \"+00:00\"))` parses it; check `.tzinfo is None` afterwards.",
+  "In from_dict, `isinstance(data, Mapping)`, then a list comprehension of missing keys, then `cls(plan_sha256=..., risk=Severity.parse(...), issued_at=_parse_time(data[\"issued_at\"], \"issued_at\"), ...)`.",
+]
+
+[[exercise]]
+id = "p5-signatures"
+phase = 5
+title = "Keys and HMAC signatures"
+file = "changegate/approvals.py"
+stubs = ["load_key", "compute_signature", "sign", "signature_valid"]
+test = "test_p5_signatures.py"
+task = '''
+- `load_key(env_name, environ=None) -> bytes`: read the variable (default `os.environ`). Missing or
+  empty → `ApprovalError` containing `not set`. Encode as UTF-8; shorter than `MIN_KEY_BYTES` (32) →
+  `ApprovalError` containing `too short`.
+- `compute_signature(approval, key) -> str`: HMAC-SHA256 over `canonical_bytes(approval.payload())`,
+  as hex.
+- `sign(approval, key) -> Approval`: a **copy** with `signature` set (`dataclasses.replace`; the
+  dataclass is frozen).
+- `signature_valid(approval, key) -> bool`: compare the stored and freshly computed signatures with
+  `hmac.compare_digest` (never `==`: it leaks timing information).
+'''
+hints = [
+  "`hmac.new(key, message, hashlib.sha256).hexdigest()` computes an HMAC.",
+  "`replace(approval, signature=...)` returns a new frozen dataclass with one field changed.",
+  "signature_valid: `return hmac.compare_digest(approval.signature, compute_signature(approval, key))`",
+]
+
+[[exercise]]
+id = "p5-create-approval"
+phase = 5
+title = "Create an approval"
+file = "changegate/approvals.py"
+stubs = ["create_approval"]
+test = "test_p5_create_approval.py"
+task = '''
+Implement `create_approval(plan_sha256, approver, risk, key, ttl_hours, comment="", now=None)`:
+
+- `plan_sha256` must be exactly 64 lowercase hex characters, `approver` must not be blank, and
+  `ttl_hours` must be positive - otherwise `ApprovalError`.
+- `now` defaults to `utcnow()`. The approval is issued at `now`, expires at `now + ttl_hours`, uses the
+  approver with surrounding spaces removed, and is returned **signed**.
+'''
+hints = [
+  "`re.fullmatch(r\"[0-9a-f]{64}\", plan_sha256)` returns None when it doesn't match.",
+  "`timedelta(hours=ttl_hours)` adds hours to a datetime.",
+  "approval = Approval(plan_sha256, approver.strip(), risk, now, now + timedelta(hours=ttl_hours), comment); return sign(approval, key)",
+]
+
+[[exercise]]
+id = "p5-approval-rules"
+phase = 5
+title = "The rules for a valid approval"
+file = "changegate/approvals.py"
+stubs = ["approval_problem"]
+test = "test_p5_approval_rules.py"
+task = '''
+Implement `approval_problem(approval, evaluation, cfg, key, author, now) -> str | None`: the reason an
+approval doesn't count, or None. Check in this order and return the first problem, each message starting
+with `"<approver>: "`:
+
+1. signature invalid → contains `signature is invalid`
+2. plan hash differs from `evaluation.plan_sha256` (compare with `hmac.compare_digest`) → `different plan`
+3. issued more than `CLOCK_SKEW` in the future → `issued in the future`
+4. `now >= expires_at` → `expired`
+5. older than `cfg.max_age_hours` → `older than`
+6. `author` given, self-approval not allowed, and same identity (`same_identity`) → `own change`
+7. approver not in `cfg.approvers` (case-insensitive) → `not in the configured approvers`
+8. approved risk lower than `evaluation.risk` → `but the plan is now <RISK>`
+
+Nothing in an approval is trusted until its signature checks out - that's why it's first.
+'''
+hints = [
+  "Each rule is an `if ...: return \"%s: ...\" % who` line. `who = approval.approver or \"(unknown)\"`.",
+  "Age is `now - approval.issued_at`; compare it to `timedelta(hours=cfg.max_age_hours)`.",
+  "Rule 7: `if not any(same_identity(approval.approver, allowed) for allowed in cfg.approvers): return ...`",
+]
+
+[[exercise]]
+id = "p5-check-approvals"
+phase = 5
+title = "Count valid approvals"
+file = "changegate/approvals.py"
+stubs = ["check_approvals"]
+test = "test_p5_check_approvals.py"
+task = '''
+Implement `check_approvals(evaluation, approvals, cfg, key, author=None, now=None) -> ApprovalCheck`:
+
+- ALLOW → `ApprovalCheck(True, 0, (), ())`.
+- BLOCK → not satisfied, problems `("the plan is blocked; approvals cannot override a block",)`.
+- Otherwise `required = cfg.required_for(evaluation.risk)`. No approvers configured → not satisfied with
+  a problem containing `no approvers`. `key` is None → not satisfied, problem containing `no signing key`.
+- Check each approval with `approval_problem`. Valid ones count **once per identity** (a second approval
+  by the same person adds a problem containing `duplicate`).
+- Satisfied when enough distinct approvers. If not, add `"<n> of <required> required approval(s) for <RISK> risk"`.
+'''
+hints = [
+  "Keep two lists, `approved_by` and `problems`. Use `same_identity` to detect duplicates.",
+  "`now = now or utcnow()` before checking approvals.",
+  "return ApprovalCheck(satisfied, required, tuple(approved_by), tuple(problems))",
+]
+
+[[exercise]]
+id = "p5-approval-files"
+phase = 5
+title = "Save and load approval files"
+file = "changegate/approvals.py"
+stubs = ["write_approval", "load_approvals"]
+test = "test_p5_approval_files.py"
+task = '''
+- `write_approval(approval, directory) -> Path`: create the directory if needed and write
+  `approval.to_dict()` as indented JSON to `<first 12 chars of plan hash>-<_safe(approver)>.json`.
+- `load_approvals(paths) -> (list[Approval], list[str])`: each path may be a directory (load every
+  `*.json` inside, sorted) or a file. A path that doesn't exist adds a problem `"<path>: not found"`.
+  A file that can't be read, isn't JSON, or isn't a valid approval adds `"<file name>: <error>"` -
+  one bad file must never stop the others loading, nor count as an approval.
+'''
+hints = [
+  "`Path(directory).mkdir(parents=True, exist_ok=True)` and `path.write_text(json.dumps(..., indent=2) + \"\\n\", encoding=\"utf-8\")`.",
+  "Build a list of files first, then loop with try/except `(OSError, json.JSONDecodeError, ApprovalError)`.",
+  "approvals.append(Approval.from_dict(json.loads(f.read_text(encoding=\"utf-8\"))))",
+]
+
+[[exercise]]
+id = "p5-audit-append"
+phase = 5
+title = "An append-only, hash-chained log"
+file = "changegate/audit.py"
+stubs = ["record_hash", "AuditLog.records", "AuditLog.head", "AuditLog.append"]
+test = "test_p5_audit_append.py"
+task = '''
+- `record_hash(record)`: `sha256_hex` of the record **without** its `hash` key.
+- `AuditLog.records()`: `[]` if the file doesn't exist; otherwise each non-blank line parsed as JSON. A bad
+  line → `AuditError` containing the line number and `not valid JSON`.
+- `AuditLog.head() -> (seq, hash)`: `(0, GENESIS_HASH)` for an empty log, else the last record's.
+- `AuditLog.append(event, data, now=None)`: build `{"seq": previous + 1, "timestamp": <UTC ISO to
+  seconds with Z>, "event", "data", "prev_hash": <previous hash>}`, add `"hash": record_hash(record)`,
+  create parent folders, and append one JSON line (sorted keys) using `os.open` with
+  `os.O_WRONLY | os.O_APPEND | os.O_CREAT`. Return the record.
+'''
+hints = [
+  "`{k: v for k, v in record.items() if k != \"hash\"}` makes the copy to hash.",
+  "`enumerate(f, 1)` numbers lines from 1 for the error message.",
+  "fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640); try: os.write(fd, line.encode(\"utf-8\")) finally: os.close(fd)",
+]
+
+[[exercise]]
+id = "p5-audit-verify"
+phase = 5
+title = "Verify the audit chain"
+file = "changegate/audit.py"
+stubs = ["AuditLog.verify"]
+test = "test_p5_audit_verify.py"
+task = '''
+Implement `AuditLog.verify(expected_head=None) -> AuditVerification`:
+
+- If reading fails with `AuditError`, return `AuditVerification(False, 0, "", (message,))`.
+- Walk the records with `prev = GENESIS_HASH`. For record n (from 1) report, with messages starting
+  `"record <n>: "`: a `seq` that isn't n (contains `sequence`), a `prev_hash` that isn't `prev`
+  (contains `chain broken`), and a `hash` that doesn't match `record_hash` (contains `modified`). Then
+  `prev` becomes this record's hash.
+- `head` is the last hash (or `GENESIS_HASH` when empty). If `expected_head` is given and differs, add a
+  problem containing `does not match the expected`.
+- Return `AuditVerification(not problems, count, head, tuple(problems))`.
+'''
+hints = [
+  "Use `record.get(...)` so a damaged record doesn't crash verification.",
+  "All three checks run for every record - they're independent `if`s.",
+  "head = prev if records else GENESIS_HASH",
+]

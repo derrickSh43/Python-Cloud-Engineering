@@ -1,0 +1,153 @@
+# Phase 6 - Production: reports, the command-line tool, and the capstone.
+
+[[exercise]]
+id = "p6-report-text"
+phase = 6
+title = "Plain-text report"
+file = "changegate/report.py"
+stubs = ["final_outcome", "render_text"]
+test = "test_p6_report_text.py"
+task = '''
+- `final_outcome(evaluation, check) -> str`: when the decision is REQUIRE_APPROVAL and a `check` was
+  given, `"APPROVED"` if satisfied else `"APPROVAL REQUIRED"`. Otherwise `ICONS[evaluation.decision]`.
+- `render_text(evaluation, check=None) -> str`: lines, ending with a newline:
+  - `Cloud ChangeGate`, then `  plan:      sha256 <hash>`, `  changes:   <_actions(evaluation)>`,
+    `  risk:      <RISK>`, `  decision:  <final_outcome>` and each reason as `             - <reason>`.
+  - If there are findings: a blank line, `Findings (<n>):`, then for each
+    `  [<severity padded to 8>] <policy_id>  <address>` and `             <message>`, plus
+    `             fix: <remediation>` when there is one.
+  - If a check was given and approval is required: a blank line,
+    `Approvals: <approved> of <required> required`, then `  ok   <name>` per approver and
+    `  --   <problem>` per problem.
+'''
+hints = [
+  "Build a list of strings and finish with `\"\\n\".join(lines) + \"\\n\"`.",
+  "`\"[%-8s]\" % f.severity` left-aligns the name in 8 characters.",
+  "if check is not None and evaluation.decision == Decision.REQUIRE_APPROVAL: lines += [\"\", \"Approvals: %d of %d required\" % (len(check.approved_by), check.required)] ...",
+]
+
+[[exercise]]
+id = "p6-report-formats"
+phase = 6
+title = "JSON and Markdown reports"
+file = "changegate/report.py"
+stubs = ["render_json", "render_markdown"]
+test = "test_p6_report_formats.py"
+task = '''
+- `render_json(evaluation, check=None)`: `evaluation.to_dict()` plus `"outcome": final_outcome(...)`,
+  plus `"approvals": check.to_dict()` when a check is given; dumped with `indent=2` and a trailing newline.
+- `render_markdown(evaluation, check=None)`: for a PR comment. Start with
+  `## Cloud ChangeGate: <outcome>`, a table with rows `| Risk | **<RISK>** |`, `| Changes | ... |` and
+  `| Plan SHA-256 | `<hash>` |`, then reasons as `- ` bullets. With findings, a `### Findings` table with
+  columns Severity, Policy, Resource, Problem, Fix (policy and resource in backticks). With a check and
+  approval required, `### Approvals (<n> of <required>)` with `- approved by **<name>**` and problem
+  bullets. Escape `|` inside free text with `_md()` so it can't break the table. End with a newline.
+'''
+hints = [
+  "`data = evaluation.to_dict()` is a normal dict - add keys, then `json.dumps(data, indent=2) + \"\\n\"`.",
+  "Markdown tables need a header row and a `|---|---|` separator row.",
+  "lines.append(\"| %s | `%s` | `%s` | %s | %s |\" % (f.severity, f.policy_id, f.address, _md(f.message), _md(f.remediation)))",
+]
+
+[[exercise]]
+id = "p6-cli-parser"
+phase = 6
+title = "Command-line arguments with argparse"
+file = "changegate/cli.py"
+stubs = ["build_parser"]
+test = "test_p6_cli_parser.py"
+task = '''
+Implement `build_parser()` returning a `Parser` (the subclass at the top of the file, which exits with
+code 3 on bad usage) with `prog="changegate"`:
+
+- Global options: `--version` (`action="version"`, text `"changegate " + __version__`), `--config`,
+  `-v/--verbose` (store_true).
+- Required subcommands (`dest="command"`, `parser_class=Parser`):
+  - `evaluate PLAN` and `verify PLAN` both take `--format` (choices: the keys of `report.RENDERERS`,
+    default `text`), `--output`, `--no-audit`. `verify` also takes `--approvals` (`nargs="*"`, default
+    `["approvals"]`) and `--author` (default from `$CHANGEGATE_AUTHOR`).
+  - `approve PLAN` with `--approver` (default `$CHANGEGATE_APPROVER`), `--comment` (default `""`),
+    `--ttl-hours` (float), `--out-dir` (default `approvals`), `--no-audit`.
+  - `audit` with required sub-subcommands (`dest="audit_command"`): `verify` (`--log`,
+    `--expect-head`) and `show` (`--log`, `--tail` int default 10).
+  - `policies` (no arguments) and `hash PLAN`.
+'''
+hints = [
+  "`sub = parser.add_subparsers(dest=\"command\", required=True, parser_class=Parser)` then `p = sub.add_parser(\"evaluate\")`.",
+  "Write a small inner function that adds the three shared output options to a subparser, and call it for evaluate and verify.",
+  "`os.environ.get(\"CHANGEGATE_AUTHOR\")` as a default reads the environment when the parser is built.",
+]
+
+[[exercise]]
+id = "p6-cli-commands"
+phase = 6
+title = "The CLI commands and exit codes"
+file = "changegate/cli.py"
+stubs = ["exit_code_for", "cmd_evaluate", "cmd_approve", "cmd_verify", "cmd_audit"]
+test = "test_p6_cli_commands.py"
+task = '''
+- `exit_code_for(evaluation, approved=False)`: BLOCK → `EXIT_BLOCKED`; REQUIRE_APPROVAL and not
+  approved → `EXIT_NEEDS_APPROVAL`; otherwise `EXIT_OK`.
+- `cmd_evaluate(args, config)`: evaluate the plan file, `emit` the chosen format, write an `"evaluate"`
+  audit record with `evaluation_summary`, return the exit code.
+- `cmd_approve(args, config)`: no approver → `UsageError`. Evaluate; ALLOW → print a message containing
+  `Nothing to approve` and return OK; BLOCK → print to stderr and return `EXIT_BLOCKED` without
+  writing anything. Otherwise load the key from `config.approvals.key_env`, create the approval
+  (TTL: `args.ttl_hours` or `config.approvals.max_age_hours`), write it to `args.out_dir`, print where,
+  write an `"approve"` audit record, return OK.
+- `cmd_verify(args, config)`: evaluate; load approvals from `args.approvals`; when approval is required,
+  load the key (an `ApprovalError` becomes one more problem instead of a crash); check approvals; put
+  load problems first in the check's problems; emit the report; audit `"verify"`; return
+  `exit_code_for(evaluation, approved=check.satisfied)`.
+- `cmd_audit(args, config)`: `show` prints the last `--tail` records as JSON lines; `verify` prints
+  `audit log OK: <n> record(s), head <hash>` and returns OK, or prints the problems and returns `EXIT_BLOCKED`.
+'''
+hints = [
+  "Look at `cmd_policies` and `cmd_hash` (already written) for the shape of a command function.",
+  "In cmd_verify, catch `approvals.ApprovalError` around `load_key` and append `str(e)` to the load problems.",
+  "check = approvals.ApprovalCheck(check.satisfied, check.required, check.approved_by, tuple(load_problems) + check.problems)",
+]
+
+[[exercise]]
+id = "p6-cli-main"
+phase = 6
+title = "main(): one place for errors"
+file = "changegate/cli.py"
+stubs = ["main"]
+test = "test_p6_cli_main.py"
+task = '''
+Implement `main(argv=None) -> int`:
+
+- Parse arguments with `build_parser()`; configure `logging.basicConfig` (DEBUG with `--verbose`, else
+  WARNING) writing to stderr.
+- Load config with `load_config(args.config)` and run `COMMANDS[args.command](args, config)`.
+- Catch the expected error types - `ConfigError`, `PolicyLoadError`, `plan_parser.PlanError`,
+  `approvals.ApprovalError`, `AuditError`, `UsageError`, `OSError` - print
+  `changegate: error: <message>` to **stderr** and return `EXIT_ERROR`. Don't catch everything:
+  a real bug should still show its traceback.
+'''
+hints = [
+  "`print(..., file=sys.stderr)` writes to stderr.",
+  "One `try:` around loading config and running the command, one `except (A, B, C) as e:`.",
+  "return COMMANDS[args.command](args, config)",
+]
+
+[[exercise]]
+id = "p6-capstone"
+phase = 6
+kind = "suite"
+title = "Capstone: the full ChangeGate test suite"
+task = '''
+Your ChangeGate is complete when **the same 190+ tests the reference implementation passes** also pass
+against your workspace. This runs the project's full pytest suite (`tests/`) with
+`CHANGEGATE_SRC=workspace`: every policy, every sample plan's expected outcome, the full approval
+workflow, audit tampering, and the CLI end to end.
+
+Requires pytest (`pip install -r requirements-dev.txt`). Then install your own tool with
+`pip install -e projects/01-cloud-change-control/workspace` and try `changegate --help`.
+'''
+hints = [
+  "Run it and read the first failure carefully: the test name tells you which component and behaviour.",
+  "Each failing test maps to an earlier exercise - re-run that exercise's check (`python learn.py check <id>`) for a focused view.",
+  "Compare your code with the reference solution for that exercise (`python learn.py solution <id>`) once you've tried.",
+]

@@ -7,6 +7,10 @@ from enum import Enum, IntEnum
 from typing import Any
 
 
+# The single actions Terraform emits. A replacement is always ["delete", "create"], never "replace".
+TERRAFORM_SINGLE_ACTIONS = ("create", "update", "delete", "read", "no-op")
+
+
 class Action(str, Enum):
     """What Terraform will do to one resource."""
 
@@ -23,11 +27,8 @@ class Action(str, Enum):
         actions = tuple(actions)
         if set(actions) == {"delete", "create"}:
             return cls.REPLACE
-        if len(actions) == 1:
-            try:
-                return cls(actions[0])
-            except ValueError:
-                pass
+        if len(actions) == 1 and actions[0] in TERRAFORM_SINGLE_ACTIONS:
+            return cls(actions[0])
         raise ValueError("unrecognised Terraform actions: %r" % (list(actions),))
 
     @property

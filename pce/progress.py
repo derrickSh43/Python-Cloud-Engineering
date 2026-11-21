@@ -41,6 +41,7 @@ class ProjectProgress:
         self.attempts = data.get("attempts", {})                 # "id:index" -> failed runs so far
         self.solutions_viewed = data.get("solutions_viewed", [])
         self.seen_overviews = data.get("seen_overviews", [])
+        self.exercises = data.get("exercises", {})               # build exercise id -> see exercise()
         self.stats = _new_stats()
         self.stats.update(data.get("stats", {}))
 
@@ -49,8 +50,15 @@ class ProjectProgress:
             "position": self.position, "completed_lessons": self.completed_lessons,
             "checkpoints": self.checkpoints, "done_steps": sorted(self.done_steps), "hints": self.hints,
             "attempts": self.attempts, "solutions_viewed": self.solutions_viewed,
-            "seen_overviews": self.seen_overviews, "stats": self.stats,
+            "seen_overviews": self.seen_overviews, "exercises": self.exercises, "stats": self.stats,
         }
+
+    def exercise(self, exercise_id):
+        """Progress record for one build exercise (created on first use)."""
+        if exercise_id not in self.exercises:
+            self.exercises[exercise_id] = {"passed": False, "passed_on": "", "checks": 0, "fails": 0,
+                                           "hints": 0, "solution": False}
+        return self.exercises[exercise_id]
 
     def note_error(self, etype):
         self.stats["errors"] += 1

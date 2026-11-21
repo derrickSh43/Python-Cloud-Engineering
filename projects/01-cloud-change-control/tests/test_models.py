@@ -12,7 +12,7 @@ def test_action_from_terraform(actions, expected):
     assert Action.from_terraform(actions) is expected
 
 
-@pytest.mark.parametrize("actions", [[], ["explode"], ["create", "update"]])
+@pytest.mark.parametrize("actions", [[], ["explode"], ["create", "update"], ["replace"]])
 def test_action_rejects_unknown(actions):
     with pytest.raises(ValueError):
         Action.from_terraform(actions)

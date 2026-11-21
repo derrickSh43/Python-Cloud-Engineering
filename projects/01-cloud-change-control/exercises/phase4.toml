@@ -1,0 +1,458 @@
+# Phase 4 - The policy engine: config, a plugin framework, AWS and GCP rules, risk and decisions.
+
+[[exercise]]
+id = "p4-networks"
+phase = 4
+title = "Is this CIDR the whole internet?"
+file = "changegate/policies/helpers.py"
+stubs = ["is_world", "any_world"]
+test = "test_p4_networks.py"
+task = '''
+Implement with the standard `ipaddress` module:
+
+- `is_world(cidr) -> bool`: True when the range covers the **entire** IPv4 or IPv6 internet - that is,
+  its prefix length is 0 (`"0.0.0.0/0"`, `"::/0"`, and also sloppy forms like `" 0.0.0.0/0 "` or
+  `"1.2.3.4/0"`). Invalid text returns False instead of raising.
+- `any_world(cidrs) -> bool`: True if any item (use `as_list`, so a single string works) is world-open.
+'''
+hints = [
+  "`ipaddress.ip_network(text, strict=False)` accepts host bits being set. The result has a `.prefixlen`.",
+  "Catch `ValueError` for invalid input. Strip spaces with `str(cidr).strip()` first.",
+  "any_world: `return any(is_world(c) for c in as_list(cidrs))`",
+]
+
+[[exercise]]
+id = "p4-config-validation"
+phase = 4
+title = "Validate config values"
+file = "changegate/config.py"
+stubs = ["_reject_unknown", "_severity", "_str_list"]
+test = "test_p4_config_validation.py"
+task = '''
+A typo in a config file must never silently weaken a rule. Implement three helpers in `config.py`:
+
+- `_reject_unknown(data, allowed, where)`: if `data` has keys not in `allowed`, raise `ConfigError`
+  starting with `unknown setting(s) in [<where>]: ` followed by the unknown keys, **sorted** and
+  comma-separated. Otherwise return None.
+- `_severity(value, where) -> Severity`: `Severity.parse(value)`, but a `ValueError` becomes
+  `ConfigError("<where>: <original message>")`.
+- `_str_list(value, where) -> tuple[str, ...]`: if `value` is a list of strings, return it as a tuple;
+  otherwise raise `ConfigError("<where> must be a list of strings")`.
+'''
+hints = [
+  "Set difference finds the extras: `set(data) - allowed`. `\", \".join(sorted(...))` formats them.",
+  "`all(isinstance(v, str) for v in value)` checks every item; check `isinstance(value, list)` first.",
+  "_severity: `try: return Severity.parse(value)  except ValueError as e: raise ConfigError(\"%s: %s\" % (where, e)) from None`",
+]
+
+[[exercise]]
+id = "p4-config-risk"
+phase = 4
+title = "Load the [risk] section"
+file = "changegate/config.py"
+stubs = ["_risk"]
+test = "test_p4_config_risk.py"
+task = '''
+Implement `_risk(data: dict) -> RiskConfig` for the `[risk]` table.
+
+- Allowed keys: `approval_at`, `block_at`, `destructive_escalation_threshold` (reject others with
+  `_reject_unknown(..., "risk")`).
+- Missing keys use the defaults from `RiskConfig()`.
+- `approval_at` and `block_at` are severities (use `_severity` with `where` like `"risk.approval_at"`).
+  `block_at` may also be `"never"` or `"none"` (any case), meaning `None` - never block.
+- If `block_at` is lower than `approval_at`, raise `ConfigError` containing `must not be lower`.
+- `destructive_escalation_threshold` must be an `int` >= 0 and **not a bool** (in Python `True` is an
+  int!); otherwise raise `ConfigError` containing `>= 0`.
+'''
+hints = [
+  "Create `defaults = RiskConfig()` and use `data.get(\"approval_at\", defaults.approval_at)`.",
+  "`str(raw_block).lower() in (\"never\", \"none\")` catches both spellings. Compare severities with `<` - they're IntEnums.",
+  "if not isinstance(threshold, int) or isinstance(threshold, bool) or threshold < 0: raise ConfigError(\"risk.destructive_escalation_threshold must be a whole number >= 0\")",
+]
+
+[[exercise]]
+id = "p4-config-load"
+phase = 4
+title = "Find and load the config file"
+file = "changegate/config.py"
+stubs = ["resolve_path", "load_config"]
+test = "test_p4_config_load.py"
+task = '''
+Implement:
+
+- `resolve_path(explicit=None, environ=None, cwd=None) -> Path | None`: an explicit path wins; else the
+  environment variable named by `CONFIG_ENV` (`environ` defaults to `os.environ`); else
+  `<cwd>/changegate.toml` **if that file exists** (`cwd` defaults to the current directory); else `None`.
+- `load_config(path=None, environ=None) -> Config`: resolve the path; `None` → `Config()` defaults.
+  Otherwise open it in binary mode and `tomllib.load` it. A missing file → `ConfigError` containing
+  `not found`; bad TOML → `ConfigError` containing `not valid TOML`. Finally return
+  `from_dict(data, source=resolved.resolve())`.
+'''
+hints = [
+  "Check the three sources in order with early returns. `Path.cwd()` is the current directory and `path.is_file()` checks existence.",
+  "`tomllib.load` needs a binary file: `open(resolved, \"rb\")`. Catch `FileNotFoundError` and `tomllib.TOMLDecodeError`.",
+  "environ = os.environ if environ is None else environ; if explicit: return Path(explicit); if environ.get(CONFIG_ENV): return Path(environ[CONFIG_ENV]); candidate = (cwd or Path.cwd()) / DEFAULT_FILENAME; return candidate if candidate.is_file() else None",
+]
+
+[[exercise]]
+id = "p4-policy-base"
+phase = 4
+title = "The Policy base class"
+file = "changegate/policies/base.py"
+stubs = ["Policy.applies_to", "Policy.finding"]
+test = "test_p4_policy_base.py"
+task = '''
+Every policy subclasses `Policy`. Its `__init__` is written for you: it stores merged `settings`,
+`self.level` (the effective severity) and `self.overridden` (True when config overrode the severity).
+Implement:
+
+- `applies_to(change) -> bool`: False if `change.action` isn't in the class's `actions`; otherwise True
+  when `resource_types` is empty (meaning "every type") or contains `change.type`.
+- `finding(change, message, remediation="", severity=None) -> Finding`: build a `Finding` with the
+  policy's `id` and the change's `address`. Severity rules: if config overrode it, always use
+  `self.level`; otherwise use the `severity` argument if given, else `self.level`.
+'''
+hints = [
+  "Class attributes like `self.actions` and `self.resource_types` are reachable through `self`.",
+  "An empty frozenset is falsy, so `not self.resource_types or change.type in self.resource_types` covers both cases.",
+  "finding: `level = self.level if self.overridden else (severity or self.level)` then `return Finding(self.id, level, change.address, message, remediation)`",
+]
+
+[[exercise]]
+id = "p4-registry"
+phase = 4
+title = "Discover policies with a decorator"
+file = "changegate/policies/base.py"
+stubs = ["register", "load_policies"]
+test = "test_p4_registry.py"
+task = '''
+Implement the plugin registry:
+
+- `register(cls)`: a class decorator. Raise `PolicyLoadError` if the class lacks `id`, `title` or
+  `severity`. If another class with a **different `__qualname__`** already registered the same id, raise
+  `PolicyLoadError` containing `duplicate`. Store it in `_REGISTRY[cls.id]` and **return the class**.
+- `load_policies(policy_config=None) -> list[Policy]`: use `PolicyConfig()` when None. Call
+  `import_modules(BUILTIN_MODULES + tuple(cfg.extra_modules))` (importing a module runs its
+  `@register` decorators). Any id named in `cfg.disabled`, `cfg.severity_overrides` or `cfg.settings`
+  that isn't registered → `PolicyLoadError` naming it. Then, for each registered id **in sorted
+  order** that isn't disabled, create the policy with
+  `cls(settings=cfg.settings.get(pid), severity=cfg.severity_overrides.get(pid))`.
+'''
+hints = [
+  "`hasattr(cls, \"id\")` checks for an attribute. A decorator must return the class, or the name becomes None.",
+  "`set(ids) - set(_REGISTRY)` finds unknown ids. Loop over the three config fields with their names so the error says which one.",
+  "for pid in sorted(_REGISTRY): if pid in cfg.disabled: continue; policies.append(_REGISTRY[pid](settings=cfg.settings.get(pid), severity=cfg.severity_overrides.get(pid)))",
+]
+
+[[exercise]]
+id = "p4-run-policies"
+phase = 4
+title = "Run policies and fail closed"
+file = "changegate/policies/base.py"
+stubs = ["run_policies"]
+test = "test_p4_run_policies.py"
+task = '''
+Implement `run_policies(policies, changes)` as a **generator** that yields every finding from every
+policy that `applies_to` each change (changes in order, policies in order for each change).
+
+A gate must never silently skip a rule: if a policy's `check` raises any `Exception`, yield instead
+`Finding(policy.id, Severity.CRITICAL, change.address, "policy raised <ExceptionType>: <message>", "...")`
+and carry on with the next policy.
+'''
+hints = [
+  "`policies` may be a one-shot iterator; turn it into a list first because you loop over it once per change.",
+  "`yield from policy.check(change)` re-yields everything a policy yields. Put it inside `try:`.",
+  "except Exception as e: yield Finding(policy.id, Severity.CRITICAL, change.address, \"policy raised %s: %s\" % (type(e).__name__, e), \"Fix the policy or the input; the change is blocked until then.\")",
+]
+
+[[exercise]]
+id = "p4-destroy-stateful"
+phase = 4
+title = "Policy: deleting data-holding resources"
+file = "changegate/policies/common.py"
+stubs = ["DestroyStatefulResource.stateful_types", "DestroyStatefulResource.check"]
+test = "test_p4_destroy_stateful.py"
+task = '''
+`DestroyStatefulResource` only runs for `DELETE` and `REPLACE` (see its `actions`). Implement:
+
+- `stateful_types()`: every provider's stateful types (`providers.all_stateful_types()`), plus
+  `self.settings["extra_types"]`, minus `self.settings["ignore_types"]`, as a frozenset.
+- `check(change)`: a generator. If the change's type is stateful, yield one finding whose message is
+  `"<type> holds data and will be deleted"` for a DELETE, or
+  `"<type> holds data and will be destroyed and re-created (replaced)"` for a REPLACE, with a remediation
+  telling the reader to confirm backups. Otherwise yield nothing.
+'''
+hints = [
+  "Set arithmetic: `(set(a) | set(b)) - set(c)`.",
+  "In a generator, a bare `return` just ends it with nothing yielded.",
+  "verb = \"deleted\" if change.action == Action.DELETE else \"destroyed and re-created (replaced)\"; yield self.finding(change, \"%s holds data and will be %s\" % (change.type, verb), \"Confirm backups exist ...\")",
+]
+
+[[exercise]]
+id = "p4-required-tags"
+phase = 4
+title = "Policy: required tags and labels"
+file = "changegate/policies/common.py"
+stubs = ["RequiredTags.check"]
+test = "test_p4_required_tags.py"
+task = '''
+Implement `RequiredTags.check(change)` (a generator):
+
+- Do nothing if `self.settings["required"]` is empty or the change's provider isn't registered
+  (`providers.lookup(change.provider)` is None).
+- Go through the provider's `tag_attributes` in order (AWS: `tags_all`, then `tags`; GCP: `labels`).
+  Skip an attribute that isn't present in `change.attributes` at all (the resource doesn't support
+  tags). For the **first** one that is present: if it's unknown (`change.is_unknown`), stop; otherwise
+  yield one finding `"missing required <attribute>: <key1>, <key2>"` listing missing keys in the
+  configured order (a `null` value counts as no tags), then stop.
+'''
+hints = [
+  "`attribute not in attrs` means 'not present at all'; `attrs.get(attribute) or {}` turns a null into an empty dict.",
+  "Use `return` after handling the first present attribute so you never check a second one.",
+  "missing = [key for key in required if key not in present]; if missing: yield self.finding(change, \"missing required %s: %s\" % (attribute, \", \".join(missing)), ...)",
+]
+
+[[exercise]]
+id = "p4-open-ingress"
+phase = 4
+title = "Shared logic: open to the internet"
+file = "changegate/policies/network.py"
+stubs = ["OpenIngressPolicy.judge"]
+test = "test_p4_open_ingress.py"
+task = '''
+`OpenIngressPolicy` is the shared base for the AWS security-group and GCP firewall policies. Implement
+`judge(change, label, all_traffic, port_range)` (a generator), called for a rule already known to be
+open to the internet:
+
+- If `all_traffic` is True or the range covers all ports (`covers_all_ports`), yield one **CRITICAL**
+  finding `"<label> allows ALL ports from the internet"` and stop.
+- Otherwise find the sensitive ports inside the range (`range_includes_any` with
+  `self.settings["sensitive_ports"]`). If any, yield one finding at the policy's normal severity:
+  `"<label> exposes sensitive port(s) 22, 3389 to the internet"` (comma-separated).
+'''
+hints = [
+  "Pass `severity=Severity.CRITICAL` to `self.finding` for the all-ports case.",
+  "`list(self.settings[\"sensitive_ports\"])` - settings come from config and may be any sequence.",
+  "\", \".join(map(str, hits)) formats the port list.",
+]
+
+[[exercise]]
+id = "p4-aws-s3"
+phase = 4
+title = "AWS policies: public S3"
+file = "changegate/policies/aws.py"
+stubs = ["S3PublicAcl.check", "S3PublicAccessBlock.check", "S3PublicBucketPolicy.check"]
+test = "test_p4_aws_s3.py"
+task = '''
+Implement three `check` generators:
+
+- `S3PublicAcl`: if `acl` is a key of `self.PUBLIC`, yield a finding `"bucket ACL is '<acl>'"` at the
+  severity from `self.PUBLIC` (`public-read-write` is CRITICAL).
+- `S3PublicAccessBlock`: list the `self.FLAGS` whose value is not exactly `True` (and not unknown).
+  If any, yield one finding `"public access protections disabled: <flag>, <flag>"`.
+- `S3PublicBucketPolicy`: skip if `policy` is unknown. Parse it with `load_json_document`; on
+  `ValueError`/`json.JSONDecodeError` yield a finding containing `not valid JSON`. Otherwise, for every
+  statement with `Effect` `"Allow"`, a public principal (`principal_is_public`) and **no** `Condition`,
+  yield a finding mentioning the statement's `Sid` (or `(no Sid)`).
+'''
+hints = [
+  "`self.PUBLIC[acl]` gives the severity; pass it as `severity=` to `self.finding`.",
+  "`attrs.get(flag) is not True` treats None and False as 'off'. Combine with `not change.is_unknown(flag)`.",
+  "for statement in statements(document or {}): if statement.get(\"Effect\") == \"Allow\" and principal_is_public(statement.get(\"Principal\")) and not statement.get(\"Condition\"): yield ...",
+]
+
+[[exercise]]
+id = "p4-aws-security-groups"
+phase = 4
+title = "AWS policy: security groups"
+file = "changegate/policies/aws.py"
+stubs = ["SecurityGroupOpenIngress.check", "SecurityGroupOpenIngress._rule"]
+test = "test_p4_aws_security_groups.py"
+task = '''
+AWS has three resource shapes for ingress rules. Implement:
+
+- `_rule(change, label, rule, v4, v6, protocol)`: if neither `v4` nor `v6` is world-open
+  (`any_world`), yield nothing. Otherwise `all_traffic` is True when `str(protocol)` is `"-1"` or
+  `"all"`; the range is `(from_port, to_port)` with missing values defaulting to 0 and 65535; then
+  `yield from self.judge(...)`.
+- `check(change)`:
+  - `aws_security_group`: for each item in `ingress` (number them from 1), call `_rule` with label
+    `"ingress rule <n>"`, the rule's `cidr_blocks`, `ipv6_cidr_blocks` and `protocol`.
+  - `aws_security_group_rule`: only when `type == "ingress"`; label `"ingress rule"`, same keys.
+  - `aws_vpc_security_group_ingress_rule`: label `"ingress rule"`, keys `cidr_ipv4`, `cidr_ipv6`,
+    `ip_protocol`.
+'''
+hints = [
+  "`enumerate(as_list(attrs.get(\"ingress\")))` gives index and rule; add 1 for the label.",
+  "Careful: a from_port of 0 is valid but falsy - test `is not None` rather than `or`.",
+  "low = rule.get(\"from_port\") if rule.get(\"from_port\") is not None else 0  (same for to_port with 65535), then yield from self.judge(change, label, all_traffic, (int(low), int(high)))",
+]
+
+[[exercise]]
+id = "p4-aws-storage"
+phase = 4
+title = "AWS policies: encryption and public databases"
+file = "changegate/policies/aws.py"
+stubs = ["UnencryptedStorage.check", "RdsPubliclyAccessible.check"]
+test = "test_p4_aws_storage.py"
+task = '''
+- `UnencryptedStorage.check`:
+  - For `aws_instance`: if the first `root_block_device` block has `encrypted` exactly `False`, yield
+    `"root volume is not encrypted"`; for each `ebs_block_device` dict with `encrypted` `False`, yield
+    `"EBS block device <n> is not encrypted"` (from 1). Nothing else for instances.
+  - For other types, the flag name is `self.FLAGS[change.type]`. Skip if unknown. If the value is not
+    exactly `True` (False or missing), yield `"<flag> is <value!r>"`, e.g. `"encrypted is False"`.
+- `RdsPubliclyAccessible.check`: yield `"publicly_accessible = true"` when it is exactly `True`.
+'''
+hints = [
+  "`first_block(attrs, \"root_block_device\")` returns `{}` when there's no block. `x is False` is stricter than `not x`.",
+  "`\"%s is %r\" % (flag, attrs.get(flag))` gives `encrypted is False` or `encrypted is None`.",
+  "for n, device in enumerate(as_list(attrs.get(\"ebs_block_device\"))): if isinstance(device, dict) and device.get(\"encrypted\") is False: yield self.finding(change, \"EBS block device %d is not encrypted\" % (n + 1), ...)",
+]
+
+[[exercise]]
+id = "p4-aws-iam"
+phase = 4
+title = "AWS policy: wildcard IAM permissions"
+file = "changegate/policies/aws.py"
+stubs = ["IamWildcard.check"]
+test = "test_p4_aws_iam.py"
+task = '''
+Implement `IamWildcard.check`. Skip unknown policies; invalid JSON yields a finding containing
+`not valid JSON`. For each statement with `Effect` `"Allow"` (Sid defaults to `(no Sid)`):
+
+- If it has `NotAction`, yield a finding containing `NotAction`.
+- If `"*"` is among its actions, yield a **CRITICAL** finding `"statement '<sid>' allows every action ("*")"`.
+- Otherwise, if `"*"` is among its resources and some actions end with `":*"` (like `s3:*`), yield
+  `"statement '<sid>' allows s3:*, ec2:* on every resource"`.
+
+`Action` and `Resource` may be a string or a list - use `as_list`.
+'''
+hints = [
+  "Normalise: `actions = [str(a) for a in as_list(statement.get(\"Action\"))]`, same for resources.",
+  "The NotAction check is independent of the others; the `\"*\"` action and the `svc:*` checks are an if/elif.",
+  "broad = [a for a in actions if a.endswith(\":*\")]",
+]
+
+[[exercise]]
+id = "p4-gcp-storage"
+phase = 4
+title = "GCP policies: public buckets"
+file = "changegate/policies/gcp.py"
+stubs = ["_members", "_roles", "GcsPublicIam.check", "GcsUniformAccess.check"]
+test = "test_p4_gcp_storage.py"
+task = '''
+GCP IAM comes in three shapes: `*_iam_member` (`member`), `*_iam_binding` (`members`) and `*_iam_policy`
+(`policy_data`, a JSON string with `bindings: [{role, members}]`). Implement:
+
+- `_members(change)`: all members as strings from `member`, `members`, and (if present and not unknown)
+  every binding in `policy_data`.
+- `_roles(change)`: all roles from `role` and from `policy_data` bindings.
+- `GcsPublicIam.check`: members (plus any `entity`) that are in `PUBLIC_MEMBERS` → one finding
+  `"grants access to allUsers"` (sorted, comma-separated). Bad `policy_data` JSON → finding containing
+  `not valid JSON`.
+- `GcsUniformAccess.check`: if `uniform_bucket_level_access` is exactly `False`, yield
+  `"uniform_bucket_level_access = false"`, adding `" and public access prevention is not enforced"`
+  unless `public_access_prevention == "enforced"`.
+'''
+hints = [
+  "`as_list(attrs.get(\"member\")) + as_list(attrs.get(\"members\"))` combines single and plural forms.",
+  "`load_json_document(attrs[\"policy_data\"]) or {}` then loop over `as_list(document.get(\"bindings\"))`.",
+  "public = sorted(PUBLIC_MEMBERS & set(members)) - set intersection finds the public ones.",
+]
+
+[[exercise]]
+id = "p4-gcp-network"
+phase = 4
+title = "GCP policies: firewalls and Cloud SQL"
+file = "changegate/policies/gcp.py"
+stubs = ["FirewallOpenIngress.check", "SqlPublicNetwork.check"]
+test = "test_p4_gcp_network.py"
+task = '''
+- `FirewallOpenIngress.check`: skip disabled rules and non-`INGRESS` rules (`direction` missing means
+  INGRESS, compare case-insensitively), and rules whose `source_ranges` aren't world-open. For each
+  `allow` block (numbered from 1), label is `"allow rule <n> (<protocol>)"`. Protocol `"all"`, or
+  `tcp`/`udp`/`sctp` with no `ports`, means all traffic → `judge(..., True, (0, 65535))`. Otherwise call
+  `judge(..., False, parse_port_range(port))` for each port entry.
+- `SqlPublicNetwork.check`: find `settings[0].ip_configuration[0]` with `first_block` twice. If
+  `ipv4_enabled` is exactly `False`, nothing. Otherwise yield `"authorized network '<name>' is <value>"`
+  for each authorized network whose `value` is world-open (`name` defaults to `(unnamed)`).
+'''
+hints = [
+  "`str(attrs.get(\"direction\") or \"INGRESS\").upper()` handles missing and lower-case directions.",
+  "`str(allow.get(\"protocol\", \"\")).lower()` and `as_list(allow.get(\"ports\"))`; use `continue` after the all-traffic case.",
+  "ip_config = first_block(first_block(change.attributes, \"settings\"), \"ip_configuration\")",
+]
+
+[[exercise]]
+id = "p4-gcp-iam"
+phase = 4
+title = "GCP policy: basic roles and public grants"
+file = "changegate/policies/gcp.py"
+stubs = ["IamPrimitiveOrPublicRole.check"]
+test = "test_p4_gcp_iam.py"
+task = '''
+Implement `IamPrimitiveOrPublicRole.check` using `_members` and `_roles` (bad JSON → a finding
+containing `not valid JSON`):
+
+- Public members (`allUsers`/`allAuthenticatedUsers`) → a **CRITICAL** finding
+  `"grants a role to allUsers"` (sorted, comma-separated).
+- Roles in `self.settings["primitive_roles"]` (default owner and editor) → a finding at the normal
+  severity `"grants basic role(s) roles/owner"` (sorted).
+
+Both can fire for the same change.
+'''
+hints = [
+  "Wrap the `_members`/`_roles` calls in one try/except for `(ValueError, json.JSONDecodeError)`.",
+  "Two independent `if` statements, not if/elif.",
+  "basic = sorted(set(roles) & set(self.settings[\"primitive_roles\"]))",
+]
+
+[[exercise]]
+id = "p4-risk"
+phase = 4
+title = "Classify risk and decide"
+file = "changegate/risk.py"
+stubs = ["classify", "decide"]
+test = "test_p4_risk.py"
+task = '''
+- `classify(changes, findings, cfg=None) -> (Severity, list[str])` (`cfg` defaults to `RiskConfig()`):
+  - Ignore changes that don't change state. With no remaining changes **and** no findings, return
+    `(LOW, ["the plan makes no changes"])`.
+  - Risk starts as the highest finding severity (LOW if none). First reason:
+    `"<n> finding(s); highest severity <LEVEL> (<k> at that level)"`, or with no findings
+    `"no policy findings across <n> change(s)"`.
+  - If the threshold is non-zero, the number of destructive changes reaches it, and risk is below
+    CRITICAL, raise risk one level and add a reason containing `destructive`.
+- `decide(risk, cfg=None) -> (Decision, str)`: BLOCK if `block_at` is set and risk >= it; else
+  REQUIRE_APPROVAL if risk >= `approval_at`; else ALLOW. The string explains which threshold applied.
+'''
+hints = [
+  "`max((f.severity for f in findings), default=Severity.LOW)` handles the empty case.",
+  "Count destructive changes with `sum(1 for c in changes if c.action.is_destructive)`. `level.escalate()` raises it.",
+  "decide: `if cfg.block_at is not None and risk >= cfg.block_at: return Decision.BLOCK, \"risk %s is at or above the block threshold (%s)\" % (risk, cfg.block_at)` - then the approval check, then ALLOW.",
+]
+
+[[exercise]]
+id = "p4-evaluator"
+phase = 4
+title = "The evaluation pipeline"
+file = "changegate/evaluator.py"
+stubs = ["evaluate_changes", "evaluate_bytes", "evaluate_file"]
+test = "test_p4_evaluator.py"
+task = '''
+Wire everything together:
+
+- `evaluate_changes(changes, plan_sha256, config=None, policies=None) -> Evaluation`: default config
+  `Config()`; default policies `load_policies(config.policies)`. Run the policies, **sort findings** by
+  severity (highest first), then address, then policy id. Classify, decide, and return an `Evaluation`
+  whose reasons are the classify reasons followed by the decision's explanation. `changes` and
+  `findings` are stored as tuples.
+- `evaluate_bytes(raw, config=None, policies=None)`: decode, parse, and evaluate with `plan_digest(raw)`.
+- `evaluate_file(path, config=None, policies=None)`: read the bytes and call `evaluate_bytes`.
+'''
+hints = [
+  "`sorted(..., key=lambda f: (-f.severity, f.address, f.policy_id))` - negating an IntEnum sorts high first.",
+  "`level, reasons = risk.classify(...)` and `decision, why = risk.decide(...)`; reasons for the Evaluation are `tuple(reasons + [why])`.",
+  "evaluate_bytes: plan = plan_parser.decode_plan(raw); changes = plan_parser.parse_plan(plan); return evaluate_changes(changes, plan_parser.plan_digest(raw), config, policies)",
+]

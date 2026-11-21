@@ -20,6 +20,8 @@ def check_step(where, step):
     kind = step.get("type")
     if kind not in STEP_TYPES:
         return [(where, "unknown step type %r" % kind)]
+    if kind == "build":
+        return []  # validated against the project's exercises in structure_problems / exercise_problems
     if kind == "example":
         r = run_code(step["code"], step["inputs"], files=step["files"], echo=True)
         if step["error_ok"] and not r.error:
@@ -51,8 +53,13 @@ def check_step(where, step):
 
 
 def structure_problems(project):
+    from . import exercises as ex_mod
+
     problems = []
     ids = set()
+    ex_set = ex_mod.load(project.path)
+    known_exercises = {ex.id for ex in ex_set.exercises} if ex_set else set()
+    embedded = []
     for n, phase in enumerate(project.phases):
         where = "%s phase %s" % (project.id, phase.get("number"))
         if n > 0 and phase["number"] != project.phases[n - 1]["number"] + 1:
@@ -68,6 +75,11 @@ def structure_problems(project):
         for lesson in phase["lessons"]:
             if not lesson["summary"].strip():
                 problems.append((where, lesson["id"] + " has no summary (reference card)"))
+            for step in lesson["steps"] + phase["checkpoint"]["steps"]:
+                if step["type"] == "build":
+                    embedded.append(step["exercise"])
+                    if step["exercise"] not in known_exercises:
+                        problems.append((where, "%s: unknown build exercise %r" % (lesson["id"], step["exercise"])))
     return problems
 
 
@@ -84,7 +96,71 @@ def jobs_for(project, only_phase=None):
     return jobs
 
 
-def run(projects, only_phase=None, workers=8, out=print):
+def exercise_problems(project, workers=8, only=None):
+    """For every build exercise N: its tests must FAIL when exercises before N are solved but N is not,
+    and PASS once N is solved too. This proves each exercise's tests are reachable in order and don't
+    depend on later work. Also checks every stub exists and the untouched starter imports."""
+    import os
+    import shutil
+    import tempfile
+
+    from . import exercises as ex_mod
+    from .checker import run_check
+
+    ex_set = ex_mod.load(project.path)
+    if ex_set is None:
+        return [], 0
+    problems = []
+    for ex in ex_set.exercises:
+        if ex.kind != "unit":
+            continue
+        if not os.path.isfile(os.path.join(ex_set.tests_dir, ex.test)):
+            problems.append((ex.id, "test file %s is missing" % ex.test))
+        if len(ex.hints) < 3:
+            problems.append((ex.id, "build exercises need 3 graduated hints"))
+    units = [ex for ex in ex_set.exercises if ex.kind == "unit"
+             and os.path.isfile(os.path.join(ex_set.tests_dir, ex.test)) and (only is None or ex.id in only)]
+    order = [ex.id for ex in ex_set.exercises]
+    root = tempfile.mkdtemp(prefix="pce_selftest_")
+    try:
+        cache = {}
+
+        def workspace(k):
+            if k not in cache:
+                cache[k] = ex_mod.build_workspace(ex_set, os.path.join(root, "w%03d" % k), solved=order[:k])
+            return cache[k]
+
+        try:
+            for ex in units:
+                i = order.index(ex.id)
+                workspace(i)
+                workspace(i + 1)
+        except ex_mod.ExerciseError as e:
+            return problems + [(project.id, "workspace generation failed: %s" % e)], 0
+
+        def check(ex):
+            i = order.index(ex.id)
+            found = []
+            before = run_check(ex_set, ex, src=cache[i])
+            after = run_check(ex_set, ex, src=cache[i + 1])
+            if before.passed:
+                found.append((ex.id, "tests already pass before the exercise is solved"))
+            if not after.passed:
+                bad = [r for r in after.results if r["status"] != "pass"]
+                detail = after.import_error or after.crash or (
+                    "%s: %s %s" % (bad[0]["name"], bad[0]["status"], bad[0]["message"][:300]) if bad else "timeout")
+                found.append((ex.id, "tests fail with the reference solution: %s" % (detail,)))
+            return found
+
+        with ThreadPoolExecutor(workers) as pool:
+            for result in pool.map(check, units):
+                problems += result
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+    return problems, len(units)
+
+
+def run(projects, only_phase=None, workers=8, out=print, exercises=True):
     failures = []
     total = 0
     for project in projects:
@@ -95,6 +171,11 @@ def run(projects, only_phase=None, workers=8, out=print):
             for result in pool.map(lambda job: check_step(*job), jobs):
                 failures += result
         out("%s: %d phases, %d steps checked" % (project.id, len(project.phases), len(jobs)))
+        if exercises and only_phase is None:
+            ex_failures, count = exercise_problems(project, workers)
+            failures += ex_failures
+            total += count
+            out("%s: %d build exercises checked (fail before, pass after)" % (project.id, count))
     for where, problem in failures:
         out("FAIL %s - %s" % (where, problem))
     out("%d project(s), %d steps, %d problems" % (len(projects), total, len(failures)))

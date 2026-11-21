@@ -8,7 +8,10 @@ What has been verified, how, and what needs live cloud infrastructure. Updated a
 |---|---|
 | Learning platform: project discovery, lesson flow, quizzes, predictions, exercises, graded hints, saved progress, resume | `tests/test_platform.py` (includes a scripted walk through a full lesson in the real app) |
 | Every lesson's examples, predictions and exercises (reference passes, starter fails, ≥2 hints) | `python learn.py selftest` |
-| ChangeGate parser, models, providers, config, all 14 policies, risk, decisions | `projects/01-cloud-change-control/tests/` (192 tests) |
+| All 48 build exercises: tests fail with only earlier exercises solved and pass once solved (proves the order works) | `python learn.py selftest` |
+| Workspace generation, check harness (failures, syntax errors, timeouts), hint/solution gating, file reset, the in-app build step | `tests/test_exercise_system.py` |
+| Capstone: full suite passes against a fully solved generated workspace and fails against the starter | run manually for M2; automated in M6 |
+| ChangeGate parser, models, providers, config, all 14 policies, risk, decisions | `projects/01-cloud-change-control/tests/` (193 tests) |
 | Expected outcome of every sample plan (AWS, GCP, multi-cloud) | `test_risk_and_evaluator.py::test_sample_outcomes` |
 | Full approval workflow: evaluate → approve ×2 → verify, self-approval refused, approvals invalid after plan edit | `test_cli.py` |
 | Audit chain: modification, deletion, reordering, truncation (with expected head) | `test_audit.py`, `test_cli.py` |
@@ -32,7 +35,7 @@ Phase 6B includes a step to diff a real plan from your account against the sampl
 | Milestone | Status |
 |---|---|
 | M1 Platform port + ChangeGate reference + sample data + tests | done |
-| M2 Exercise system: workspace stubs, per-exercise tests, `learn.py check` | planned |
+| M2 Exercise system: workspace stubs, per-exercise tests, `learn.py check` | done |
 | M3 Phases 1-2 | planned |
 | M4 Phases 3-4 | planned |
 | M5 Phases 5-6A + offline CI gate | planned |

@@ -28,12 +28,12 @@ def plan_digest(raw: bytes) -> str:
 
 def read_plan_bytes(path: str | Path) -> bytes:
     path = Path(path)
+    if path.is_dir():  # checked first: on Windows reading a directory raises PermissionError instead
+        raise PlanError("expected a plan file but got a directory: %s" % path)
     try:
         return path.read_bytes()
     except FileNotFoundError:
         raise PlanError("plan file not found: %s" % path) from None
-    except IsADirectoryError:
-        raise PlanError("expected a plan file but got a directory: %s" % path) from None
 
 
 def decode_plan(raw: bytes) -> dict[str, Any]:

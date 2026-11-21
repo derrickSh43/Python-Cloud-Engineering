@@ -24,6 +24,24 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 ```
 
+## Your workspace and build exercises
+
+From Phase 2 you build ChangeGate yourself in `projects/01-cloud-change-control/workspace/`. It's created
+automatically the first time you reach a build exercise (or run `python learn.py workspace init`): a copy
+of the tool with each piece you'll write replaced by `raise NotImplementedError("TODO(<exercise id>)")`.
+Open it in any editor.
+
+```
+python learn.py exercises            # what's done, what's next
+python learn.py show p2-read-plan    # the task, the file, the function names
+python learn.py check                # test the next unfinished exercise against your code
+python learn.py hint p2-read-plan    # next hint (three per exercise, gentle -> specific)
+python learn.py solution p2-read-plan   # after all hints or 3 genuine failed attempts
+python learn.py workspace reset changegate/plan_parser.py   # start a file over (a .bak keeps yours)
+```
+
+The workspace is git-ignored, so pulling course updates never conflicts with your code.
+
 ## Running the reference implementation
 
 The finished ChangeGate lives in `reference/` so you can see the destination. Don't read it before

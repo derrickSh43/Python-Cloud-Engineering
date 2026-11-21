@@ -7,6 +7,8 @@ Steps (the things a learner works through inside a lesson):
     Q(question, correct, *wrong)     multiple choice (options are shuffled when shown)
     P(code)                          "predict the output" - the answer is computed by running the code
     C(task, solution, ...)           a coding exercise, graded by running the learner's code
+    B(exercise_id, intro="")         a build exercise: the learner edits real files in their workspace
+                                     (defined in the project's exercises/*.toml)
 
 Structure:
 
@@ -19,7 +21,7 @@ import importlib
 import pkgutil
 from textwrap import dedent
 
-STEP_TYPES = ("text", "example", "quiz", "predict", "code")
+STEP_TYPES = ("text", "example", "quiz", "predict", "code", "build")
 
 
 def _clean(text):
@@ -59,6 +61,10 @@ def C(task, solution, check=None, starter="", hints=(), require=(), forbid=(), i
             "require": list(require), "forbid": list(forbid), "inputs": list(inputs),
             "cases": [list(c) for c in cases] if cases else None,
             "match_output": (check is None) if match_output is None else match_output, "files": files}
+
+
+def B(exercise_id, intro=""):
+    return {"type": "build", "exercise": exercise_id, "intro": _clean(intro)}
 
 
 def Lesson(lesson_id, title, steps, summary):
