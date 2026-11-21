@@ -1,0 +1,91 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.5",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "aws_db_instance.orders",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "orders",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "delete",
+          "create"
+        ],
+        "before": {
+          "identifier": "orders",
+          "engine": "postgres",
+          "engine_version": "15.4",
+          "storage_encrypted": true,
+          "publicly_accessible": false,
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": {
+          "identifier": "orders",
+          "engine": "postgres",
+          "engine_version": "16.1",
+          "storage_encrypted": true,
+          "publicly_accessible": false,
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after_unknown": {
+          "endpoint": true,
+          "id": true
+        },
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "aws_security_group_rule.db_from_app",
+      "mode": "managed",
+      "type": "aws_security_group_rule",
+      "name": "db_from_app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "type": "ingress",
+          "from_port": 5432,
+          "to_port": 5432,
+          "protocol": "tcp",
+          "cidr_blocks": [
+            "10.0.1.0/24"
+          ],
+          "security_group_id": "sg-0example"
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  },
+  "timestamp": "2026-01-15T10:00:00Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

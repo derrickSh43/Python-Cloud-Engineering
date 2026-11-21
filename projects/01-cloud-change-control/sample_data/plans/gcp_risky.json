@@ -1,0 +1,194 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.5",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "google_compute_firewall.allow_ssh",
+      "mode": "managed",
+      "type": "google_compute_firewall",
+      "name": "allow_ssh",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "allow-ssh",
+          "network": "default",
+          "project": "example-project",
+          "direction": "INGRESS",
+          "source_ranges": [
+            "0.0.0.0/0"
+          ],
+          "allow": [
+            {
+              "protocol": "tcp",
+              "ports": [
+                "22",
+                "8080-8090"
+              ]
+            }
+          ],
+          "disabled": false
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_compute_firewall.allow_everything",
+      "mode": "managed",
+      "type": "google_compute_firewall",
+      "name": "allow_everything",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "allow-everything",
+          "network": "default",
+          "project": "example-project",
+          "direction": "INGRESS",
+          "source_ranges": [
+            "0.0.0.0/0"
+          ],
+          "allow": [
+            {
+              "protocol": "all",
+              "ports": []
+            }
+          ],
+          "disabled": false
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_storage_bucket_iam_member.public_read",
+      "mode": "managed",
+      "type": "google_storage_bucket_iam_member",
+      "name": "public_read",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "example-project-site",
+          "role": "roles/storage.objectViewer",
+          "member": "allUsers"
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_project_iam_member.contractor_owner",
+      "mode": "managed",
+      "type": "google_project_iam_member",
+      "name": "contractor_owner",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "project": "example-project",
+          "role": "roles/owner",
+          "member": "user:contractor@example.com"
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_sql_database_instance.main",
+      "mode": "managed",
+      "type": "google_sql_database_instance",
+      "name": "main",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "main",
+          "database_version": "POSTGRES_15",
+          "project": "example-project",
+          "region": "us-central1",
+          "settings": [
+            {
+              "tier": "db-f1-micro",
+              "ip_configuration": [
+                {
+                  "ipv4_enabled": true,
+                  "authorized_networks": [
+                    {
+                      "name": "anywhere",
+                      "value": "0.0.0.0/0"
+                    }
+                  ]
+                }
+              ],
+              "user_labels": {
+                "owner": "platform-team",
+                "environment": "dev"
+              }
+            }
+          ]
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_storage_bucket.legacy",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "legacy",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "example-project-legacy",
+          "location": "US",
+          "project": "example-project",
+          "uniform_bucket_level_access": false,
+          "public_access_prevention": "inherited",
+          "labels": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  },
+  "timestamp": "2026-01-15T10:00:00Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

@@ -1,0 +1,43 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.5",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "google_storage_bucket.uploads",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "uploads",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "example-project-uploads",
+          "location": "US",
+          "project": "example-project",
+          "uniform_bucket_level_access": false,
+          "public_access_prevention": "enforced",
+          "labels": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  },
+  "timestamp": "2026-01-15T10:00:00Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

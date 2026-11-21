@@ -1,0 +1,65 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.5",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "aws_s3_bucket.untagged",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "untagged",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "example-untagged",
+          "tags": {
+            "owner": "platform-team"
+          },
+          "tags_all": {
+            "owner": "platform-team"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_storage_bucket.unlabelled",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "unlabelled",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "example-project-unlabelled",
+          "location": "US",
+          "project": "example-project",
+          "uniform_bucket_level_access": true,
+          "public_access_prevention": "enforced",
+          "labels": {}
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  },
+  "timestamp": "2026-01-15T10:00:00Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

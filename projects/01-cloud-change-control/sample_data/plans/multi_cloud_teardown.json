@@ -1,0 +1,185 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.5",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "aws_instance.worker_1",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "worker_1",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "delete"
+        ],
+        "before": {
+          "ami": "ami-0example",
+          "instance_type": "t3.micro",
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": null,
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": false
+      }
+    },
+    {
+      "address": "aws_instance.worker_2",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "worker_2",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "delete"
+        ],
+        "before": {
+          "ami": "ami-0example",
+          "instance_type": "t3.micro",
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": null,
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": false
+      }
+    },
+    {
+      "address": "aws_instance.worker_3",
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "worker_3",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "delete"
+        ],
+        "before": {
+          "ami": "ami-0example",
+          "instance_type": "t3.micro",
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": null,
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": false
+      }
+    },
+    {
+      "address": "google_compute_instance.batch_1",
+      "mode": "managed",
+      "type": "google_compute_instance",
+      "name": "batch_1",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "delete"
+        ],
+        "before": {
+          "name": "batch-1",
+          "machine_type": "e2-small",
+          "labels": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": null,
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": false
+      }
+    },
+    {
+      "address": "google_compute_instance.batch_2",
+      "mode": "managed",
+      "type": "google_compute_instance",
+      "name": "batch_2",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "delete"
+        ],
+        "before": {
+          "name": "batch-2",
+          "machine_type": "e2-small",
+          "labels": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": null,
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": false
+      }
+    },
+    {
+      "address": "aws_s3_bucket.scratch",
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "scratch",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": [
+          "no-op"
+        ],
+        "before": {
+          "bucket": "example-scratch",
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after": {
+          "bucket": "example-scratch",
+          "tags": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "tags_all": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  },
+  "timestamp": "2026-01-15T10:00:00Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

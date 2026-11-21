@@ -1,0 +1,4 @@
+id = "01-cloud-change-control"
+title = "Cloud Change Control"
+summary = "From your first line of Python to Cloud ChangeGate: a tested tool that evaluates Terraform plans, enforces security policy, verifies approvals and keeps a tamper-evident audit trail."
+order = 1

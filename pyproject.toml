@@ -1,0 +1,3 @@
+[tool.pytest.ini_options]
+testpaths = ["tests", "projects/01-cloud-change-control/tests"]
+addopts = "-ra"

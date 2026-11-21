@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Validate every lesson and exercise
+        run: python learn.py selftest
+      - name: Platform and ChangeGate tests
+        run: python -m pytest
+      - name: Install the reference package and smoke-test the CLI
+        working-directory: projects/01-cloud-change-control
+        shell: bash
+        run: |
+          python -m pip install ./reference
+          changegate --version
+          changegate --config sample_data/changegate.example.toml evaluate --no-audit sample_data/plans/aws_safe.json
+          set +e
+          changegate --config sample_data/changegate.example.toml evaluate --no-audit sample_data/plans/aws_risky.json
+          code=$?
+          set -e
+          test "$code" -eq 1

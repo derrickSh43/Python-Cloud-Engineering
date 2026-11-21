@@ -1,0 +1,132 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.5",
+  "planned_values": {
+    "root_module": {}
+  },
+  "resource_changes": [
+    {
+      "address": "google_storage_bucket.reports",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "reports",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "example-project-reports",
+          "location": "US",
+          "project": "example-project",
+          "uniform_bucket_level_access": true,
+          "public_access_prevention": "enforced",
+          "labels": {
+            "owner": "platform-team",
+            "environment": "dev"
+          },
+          "force_destroy": false
+        },
+        "after_unknown": {
+          "self_link": true,
+          "url": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_storage_bucket_iam_member.reports_reader",
+      "mode": "managed",
+      "type": "google_storage_bucket_iam_member",
+      "name": "reports_reader",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "bucket": "example-project-reports",
+          "role": "roles/storage.objectViewer",
+          "member": "serviceAccount:reporter@example-project.iam.gserviceaccount.com"
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_compute_firewall.allow_https",
+      "mode": "managed",
+      "type": "google_compute_firewall",
+      "name": "allow_https",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "allow-https",
+          "network": "default",
+          "project": "example-project",
+          "direction": "INGRESS",
+          "source_ranges": [
+            "0.0.0.0/0"
+          ],
+          "allow": [
+            {
+              "protocol": "tcp",
+              "ports": [
+                "443"
+              ]
+            }
+          ],
+          "disabled": false
+        },
+        "after_unknown": {},
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "google_compute_instance.app",
+      "mode": "managed",
+      "type": "google_compute_instance",
+      "name": "app",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "name": "app",
+          "machine_type": "e2-small",
+          "labels": {
+            "owner": "platform-team"
+          }
+        },
+        "after": {
+          "name": "app",
+          "machine_type": "e2-small",
+          "labels": {
+            "owner": "platform-team",
+            "environment": "dev"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": {},
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "root_module": {}
+  },
+  "timestamp": "2026-01-15T10:00:00Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

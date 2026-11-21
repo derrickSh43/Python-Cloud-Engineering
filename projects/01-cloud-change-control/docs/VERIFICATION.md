@@ -1,0 +1,40 @@
+# Verification status
+
+What has been verified, how, and what needs live cloud infrastructure. Updated at every milestone.
+
+## Verified locally (no cloud account needed)
+
+| Area | How it is verified |
+|---|---|
+| Learning platform: project discovery, lesson flow, quizzes, predictions, exercises, graded hints, saved progress, resume | `tests/test_platform.py` (includes a scripted walk through a full lesson in the real app) |
+| Every lesson's examples, predictions and exercises (reference passes, starter fails, ≥2 hints) | `python learn.py selftest` |
+| ChangeGate parser, models, providers, config, all 14 policies, risk, decisions | `projects/01-cloud-change-control/tests/` (192 tests) |
+| Expected outcome of every sample plan (AWS, GCP, multi-cloud) | `test_risk_and_evaluator.py::test_sample_outcomes` |
+| Full approval workflow: evaluate → approve ×2 → verify, self-approval refused, approvals invalid after plan edit | `test_cli.py` |
+| Audit chain: modification, deletion, reordering, truncation (with expected head) | `test_audit.py`, `test_cli.py` |
+| No secrets or real account ids committed | `tests/test_no_hardcoding.py` |
+| CI runs all of the above on Linux and Windows, Python 3.11-3.13 | `.github/workflows/ci.yml` |
+
+## Requires live AWS / GCP (Phase 6B - not verified until you run it)
+
+| Area | Why it can't be verified locally |
+|---|---|
+| Producing plans with `terraform plan` against real providers | needs cloud credentials and API access |
+| GitHub OIDC → AWS IAM role, Workload Identity Federation → GCP service account | needs real accounts and a GitHub repository with variables set |
+| Protected-environment approval flow and `terraform apply` in CI | needs the above plus configured GitHub environments |
+
+The sample plans in `sample_data/plans/` are hand-authored to match the `terraform show -json`
+format (version 1.2) and the attribute names of the hashicorp/aws and hashicorp/google providers.
+Phase 6B includes a step to diff a real plan from your account against the samples.
+
+## Milestone log
+
+| Milestone | Status |
+|---|---|
+| M1 Platform port + ChangeGate reference + sample data + tests | done |
+| M2 Exercise system: workspace stubs, per-exercise tests, `learn.py check` | planned |
+| M3 Phases 1-2 | planned |
+| M4 Phases 3-4 | planned |
+| M5 Phases 5-6A + offline CI gate | planned |
+| M6 End-to-end verification from a fresh clone | planned |
+| M7 Phase 6B cloud (when you choose) | planned |

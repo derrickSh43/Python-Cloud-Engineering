@@ -1,0 +1,43 @@
+# Example ChangeGate configuration. Copy to changegate.toml and edit for your team.
+# Nothing in here is a secret: the approval signing key is read from the environment variable
+# named by approvals.key_env, never from this file.
+
+[policies]
+# Policy ids to switch off entirely (see `changegate policies`).
+disabled = []
+# Python modules with extra @register'd policies, importable from PYTHONPATH.
+extra_modules = []
+
+[policies.severity_overrides]
+# "GCP-GCS-UNIFORM-ACCESS" = "high"
+
+[policies.settings.CG-REQUIRED-TAGS]
+required = ["owner", "environment"]
+
+[policies.settings.AWS-SG-OPEN-INGRESS]
+sensitive_ports = [22, 23, 3389, 3306, 5432, 1433, 1521, 6379, 9200, 27017, 5900]
+
+[policies.settings.GCP-FIREWALL-OPEN-INGRESS]
+sensitive_ports = [22, 23, 3389, 3306, 5432, 1433, 1521, 6379, 9200, 27017, 5900]
+
+[risk]
+approval_at = "medium"               # this risk or higher needs approval
+block_at = "critical"                # this risk or higher is refused outright ("never" to disable)
+destructive_escalation_threshold = 5 # this many deletes/replaces raise risk one level (0 = off)
+
+[approvals]
+# Identities allowed to approve. In CI these are typically GitHub usernames.
+approvers = ["alice", "bob", "carol"]
+max_age_hours = 24
+allow_self_approval = false
+key_env = "CHANGEGATE_HMAC_KEY"
+
+[approvals.required]
+low = 1
+medium = 1
+high = 2
+critical = 2
+
+[audit]
+enabled = true
+path = "changegate-audit.jsonl"      # relative to this file
