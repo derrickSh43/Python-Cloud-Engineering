@@ -16,12 +16,13 @@ exercises/            48 build exercises: tasks + graduated hints (phaseN.toml) 
 workspace/            YOUR copy of ChangeGate, generated with every exercise as a TODO (git-ignored)
 tests/                the full ChangeGate test suite (runs against reference/ or your workspace/)
 sample_data/          sample AWS/GCP plans + example config (all placeholders)
+ci/                   GitHub Actions gate template (variables and secrets only, nothing hard-coded)
 docs/                 ARCHITECTURE, SECURITY, SETUP, VERIFICATION, CURRICULUM_MAP
 ```
 
-Available now: Phases 0-4 (orientation, fundamentals, data and files, structure and testing, the policy
-engine). Coming next: Phases 5-6 (approvals, audit, CLI, CI),
-`examples/aws` and `examples/gcp` Terraform, and CI templates.
+All phases are available: 0 orientation, 1 fundamentals, 2 data and files, 3 structure and testing, 4 the
+policy engine, 5 trust and accountability, 6 production automation and the capstone. Still to come: an
+end-to-end fresh-clone verification, then the optional real-cloud phase (`examples/aws`, `examples/gcp`).
 
 ## Try the finished tool
 

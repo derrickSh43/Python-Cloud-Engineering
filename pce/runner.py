@@ -35,7 +35,11 @@ def run_code(code, inputs=(), check=None, files=None, echo=False, timeout=TIME_L
     workdir = tempfile.mkdtemp(prefix="pce_")
     try:
         for name, text in (files or {}).items():
-            with open(os.path.join(workdir, name), "w", encoding="utf-8", newline="") as f:
+            path = os.path.normpath(os.path.join(workdir, name))
+            if not path.startswith(os.path.normpath(workdir) + os.sep):
+                raise ValueError("lesson file %r must stay inside the working folder" % name)
+            os.makedirs(os.path.dirname(path), exist_ok=True)   # allows names like "approvals/a.json"
+            with open(path, "w", encoding="utf-8", newline="") as f:
                 f.write(text)
         try:
             proc = subprocess.run(

@@ -70,6 +70,23 @@ in values in these places only:
 | Terraform state backend (Phase 6B) | `backend.hcl` passed with `terraform init -backend-config=backend.hcl` | no |
 | CI cloud identity (Phase 6B) | GitHub repository/environment variables and secrets | - |
 
+## Running ChangeGate in CI (offline)
+
+`ci/github-actions/changegate-gate.yml` is a ready-made GitHub Actions workflow. Copy it to
+`.github/workflows/` in your own repository (e.g. your fork). It installs your workspace, runs
+`changegate verify` on each plan, posts the Markdown reports to the job summary and fails the check on
+exit code 1 (blocked) or 2 (approval required). Configure it only through repository settings:
+
+| Setting | Kind | Default |
+|---|---|---|
+| `CHANGEGATE_PACKAGE` | variable | `projects/01-cloud-change-control/workspace` |
+| `CHANGEGATE_CONFIG` | variable | the example config |
+| `CHANGEGATE_PLANS` | variable | the safe AWS and GCP sample plans |
+| `CHANGEGATE_HMAC_KEY` | secret | unset (needed only to verify approvals) |
+
+Your workspace is git-ignored; in your own fork commit it with
+`git add -f projects/01-cloud-change-control/workspace`.
+
 ## Running the tests
 
 ```
