@@ -114,7 +114,7 @@ class Session:
             print(style("  Running the full ChangeGate test suite against your workspace...", "grey"))
             passed = checker.run_suite(self.ex_set) == 0
         else:
-            print(style("  Checking %s against %s ..." % (exercise.id, os.path.relpath(self.path_for(exercise))), "grey"))
+            print(style("  Checking %s against %s ..." % (exercise.id, display_path(self.path_for(exercise))), "grey"))
             result = checker.run_check(self.ex_set, exercise)
             print()
             checker.show(result)
@@ -204,6 +204,15 @@ class Session:
         print(style("  %d of %d exercises complete." % (done, len(self.ex_set.exercises)), "white", "bold"))
         if nxt:
             print(style("  Next: python learn.py show %s" % nxt.id, "grey"))
+
+
+def display_path(path):
+    """A path relative to the current directory when possible. os.path.relpath raises on Windows when
+    the two are on different drives (e.g. the repo on D: and a temp folder on C:)."""
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        return path
 
 
 def open_in_editor(path):

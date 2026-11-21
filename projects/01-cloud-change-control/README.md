@@ -19,7 +19,8 @@ sample_data/          sample AWS/GCP plans + example config (all placeholders)
 docs/                 ARCHITECTURE, SECURITY, SETUP, VERIFICATION, CURRICULUM_MAP
 ```
 
-Coming in the next milestones: the Phase 1-6 lessons that lead into each build exercise,
+Available now: Phases 0-2 (orientation, Python fundamentals, data and files). Coming next: the Phase 3-6
+lessons that lead into the remaining build exercises,
 `examples/aws` and `examples/gcp` Terraform, and CI templates.
 
 ## Try the finished tool
