@@ -7,7 +7,7 @@ What has been verified, how, and what needs live cloud infrastructure. Updated a
 | Area | How it is verified |
 |---|---|
 | Learning platform: project discovery, lesson flow, quizzes, predictions, exercises, graded hints, saved progress, resume | `tests/test_platform.py` (includes a scripted walk through a full lesson in the real app) |
-| Every lesson's examples, predictions and exercises (reference passes, starter fails, ≥2 hints) - Phases 0-2, 193 steps | `python learn.py selftest` |
+| Every lesson's examples, predictions and exercises (reference passes, starter fails, ≥2 hints) - Phases 0-4, 352 steps; every build exercise embedded in exactly one lesson | `python learn.py selftest` |
 | All 48 build exercises: tests fail with only earlier exercises solved and pass once solved (proves the order works) | `python learn.py selftest` |
 | Workspace generation, check harness (failures, syntax errors, timeouts), hint/solution gating, file reset, the in-app build step | `tests/test_exercise_system.py` |
 | Capstone: full suite passes against a fully solved generated workspace and fails against the starter | run manually for M2; automated in M6 |
@@ -37,7 +37,7 @@ Phase 6B includes a step to diff a real plan from your account against the sampl
 | M1 Platform port + ChangeGate reference + sample data + tests | done |
 | M2 Exercise system: workspace stubs, per-exercise tests, `learn.py check` | done |
 | M3 Phases 1-2: 14 lessons + 2 checkpoints, Phase 2 leads into its 8 build exercises | done |
-| M4 Phases 3-4 | planned |
+| M4 Phases 3-4: 14 lessons + 2 checkpoints leading into 27 build exercises | done |
 | M5 Phases 5-6A + offline CI gate | planned |
 | M6 End-to-end verification from a fresh clone | planned |
 | M7 Phase 6B cloud (when you choose) | planned |

@@ -75,11 +75,18 @@ def structure_problems(project):
         for lesson in phase["lessons"]:
             if not lesson["summary"].strip():
                 problems.append((where, lesson["id"] + " has no summary (reference card)"))
-            for step in lesson["steps"] + phase["checkpoint"]["steps"]:
+        for owner in phase["lessons"] + [phase["checkpoint"]]:
+            for step in owner["steps"]:
                 if step["type"] == "build":
                     embedded.append(step["exercise"])
                     if step["exercise"] not in known_exercises:
-                        problems.append((where, "%s: unknown build exercise %r" % (lesson["id"], step["exercise"])))
+                        problems.append((where, "%s: unknown build exercise %r" % (owner["id"], step["exercise"])))
+    # every exercise belonging to a phase that exists must be taught somewhere - exactly once
+    numbers = {phase["number"] for phase in project.phases}
+    for ex in (ex_set.exercises if ex_set else []):
+        if ex.phase in numbers and embedded.count(ex.id) != 1:
+            problems.append((project.id, "exercise %s (phase %d) appears in %d lessons, expected 1" % (
+                ex.id, ex.phase, embedded.count(ex.id))))
     return problems
 
 
