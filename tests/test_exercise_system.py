@@ -86,6 +86,7 @@ from pce.lesson import Phase, Lesson, Checkpoint, T, B, Q
 
 PHASES = [Phase("d0", 0, "Demo", "demo", "Demo phase.", lessons=[
     Lesson("d0l1", "Build it", [T("Intro."), B("demo-add", intro="Write add.")], summary="add"),
+    Lesson("d0l2", "More", [B("demo-sub"), B("demo-pair")], summary="sub and pair"),
 ], checkpoint=Checkpoint("d0cp", "Check", "Quick.", [Q("1+1?", "2", "3")]))]
 '''
 
