@@ -1,18 +1,37 @@
 from pce.lesson import Q, C, Checkpoint
 
-CHECKPOINT = Checkpoint("p04cp", "Security judgement", """
-    Questions about the real-world reasons behind the policies, and a small policy written from scratch.
+CHECKPOINT = Checkpoint("p04cp", "Rules as code", """
+    Read some rule code, then write a small rule from scratch.
 """, [
-    Q("An S3 bucket policy statement has `\"Principal\": \"*\"` and no `Condition`. Who can use it?",
-      "Anyone on the internet", "Only users in the same AWS account", "Only the bucket owner", "Nobody until a role is attached"),
-    Q("Which GCP member grants access to anyone with any Google account?",
-      "allAuthenticatedUsers", "allUsers", "domain:example.com", "projectViewer"),
-    Q("Why is `roles/owner` on a project flagged even for a trusted employee?",
-      "It grants far more than any one job needs: least privilege means granting only what's required",
-      "Owner roles expire after 24 hours", "GCP charges extra for owners", "Owners can't use the console"),
-    Q("A plan has five LOW-risk deletes of web servers. With the default threshold of 5, what's the risk?",
-      "MEDIUM - many destructive changes raise risk one level", "LOW - the findings are all LOW",
-      "CRITICAL - all deletes are critical", "HIGH - deletes are always high"),
+    Q("What does this print?", "['HIGH']", "[]", "['HIGH', 'HIGH']", "An error",
+      code="""
+        def check(port):
+            if port in (22, 3389):
+                yield "HIGH"
+
+        print(list(check(22)))
+      """, explain="A generator yields zero or more values; list() collects them."),
+    Q("What does this print?", "0", "22", "None", "An error",
+      code="""
+        rule = {"from_port": 0}
+        port = rule.get("from_port")
+        print(port if port is not None else 22)
+      """, explain="0 is a real port. `is not None` keeps it; `rule.get(...) or 22` would wrongly replace it."),
+    Q("What does this print?", "4", "3", "5", "An error",
+      code="""
+        LOW, MEDIUM, HIGH, CRITICAL = 1, 2, 3, 4
+        risk = max([LOW, HIGH], default=LOW)
+        deletes = 5
+        if deletes >= 5:
+            risk = min(risk + 1, CRITICAL)
+        print(risk)
+      """, explain="max gives HIGH (3); five deletes bump it one level to 4, capped at CRITICAL."),
+    Q("What does this print?", "['allUsers']", "[]", "['allAuthenticatedUsers', 'allUsers']", "An error",
+      code="""
+        PUBLIC = {"allUsers", "allAuthenticatedUsers"}
+        members = ["user:a@example.com", "allUsers"]
+        print(sorted(PUBLIC & set(members)))
+      """, explain="`&` is set intersection: only the members that appear in both."),
     C("""
         Write a generator `public_snapshot_findings(change)` for a hypothetical rule. `change` is a dict with
         `type` and `after`. For `aws_db_snapshot` (and only that type), yield

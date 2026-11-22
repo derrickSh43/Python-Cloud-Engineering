@@ -4,12 +4,20 @@ CHECKPOINT = Checkpoint("p05cp", "A signed, expiring token", """
     Combine time, canonical JSON and HMAC: build and verify a tiny signed token - the same ingredients
     as a ChangeGate approval.
 """, [
-    Q("An approval is valid but its plan hash differs from the plan being verified. Why reject it?",
-      "It approves a different plan - perhaps an earlier, harmless version", "Hashes always differ between machines",
-      "The approver's key has expired", "It doesn't matter if the signature is valid"),
-    Q("Why does ChangeGate allow a few minutes of clock skew for 'issued in the future'?",
-      "Different machines' clocks are never perfectly synchronised", "To let approvers back-date approvals",
-      "Because timezones are ignored", "So expired approvals still work"),
+    Q("What does this print?", "False", "True", "An error",
+      code="""
+        import hashlib
+        a = hashlib.sha256(b'{"bucket": "logs"}').hexdigest()
+        b = hashlib.sha256(b'{"bucket": "logs2"}').hexdigest()
+        print(a == b)
+      """, explain="Any change to the bytes gives a completely different SHA-256 digest."),
+    Q("What does this print?", "True", "False", "An error",
+      code="""
+        from datetime import datetime, timedelta, timezone
+        now = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+        issued = now + timedelta(minutes=3)
+        print(issued <= now + timedelta(minutes=5))
+      """, explain="3 minutes ahead is inside the 5-minute tolerance."),
     C("""
         Write two functions:
 

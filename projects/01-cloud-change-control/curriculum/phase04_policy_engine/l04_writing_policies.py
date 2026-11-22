@@ -26,28 +26,14 @@ LESSON = Lesson("p04l4", "Writing policies", [
         - `default_settings` are overridable from config: `[policies.settings.CG-DESTROY-STATEFUL]`.
     """),
     T("""
-        **Why destructive changes to data are special**
+        **The first two rules**
 
-        Deleting a web server is usually fine: Terraform recreates it from code. Deleting a **database**,
-        a **storage bucket** or a **disk** destroys data that no code can recreate. Worse, many harmless-looking
-        edits *force a replacement*: changing a database's engine version or an EBS volume's type can
-        appear in the plan as `["delete", "create"]`.
-
-        ChangeGate asks each provider which resource types are **stateful** (they hold data) and flags any
-        delete or replace of them as HIGH. Teams can add their own types or exclude some via settings.
-    """),
-    T("""
-        **Tags and labels**
-
-        Organisations rely on metadata on every resource - `owner`, `environment`, `cost-center` - for billing,
-        incident response and clean-up. AWS calls it **tags** (and `tags_all` includes provider-wide
-        `default_tags`); GCP calls it **labels**. The provider registry knows which attribute to read for each
-        cloud, so one `RequiredTags` policy covers both.
-
-        Two subtleties:
-
-        - Some resource types don't support tags at all - if the attribute isn't present, skip it.
-        - If Terraform can't know the tags until apply (`after_unknown`), don't guess - skip it.
+        - **Stateful deletes**: if a change deletes or replaces a resource whose type is in a set of
+          "stateful" types (databases, buckets, disks), yield a HIGH finding. It's a set lookup plus an
+          action check.
+        - **Required tags**: read a dict of tags from the change's `after` settings and report the required
+          keys that are missing. If the tags key isn't there at all, or its value is unknown, skip it. The
+          provider registry tells you which key holds the tags (`tags_all` / `tags` for AWS, `labels` for GCP).
     """),
     P("""
         required = ["owner", "environment"]
@@ -57,20 +43,28 @@ LESSON = Lesson("p04l4", "Writing policies", [
     T("""
         **Sharing logic between policies: subclassing**
 
-        "Open to the internet on a sensitive port" applies to AWS security groups *and* GCP firewalls. The
-        resource shapes differ, but the judgement is identical:
+        Two rules (one for AWS firewall rules, one for GCP) need the same check on a port range:
 
-        - all ports, or all protocols, open to the world → **CRITICAL**
-        - a sensitive port (SSH 22, RDP 3389, databases 3306/5432/1433, Redis 6379...) open → **HIGH**
-        - other ports (like 443 for a website) → fine
+        - all ports open → **CRITICAL**
+        - a port from a "sensitive" list (22, 3389, 5432...) inside the range → **HIGH**
+        - otherwise → nothing
 
-        So ChangeGate has an `OpenIngressPolicy` base class with a `judge()` method, and the AWS and GCP
-        policies subclass it - each only translates its own resource shape into `judge(...)` calls. It isn't
-        registered itself, only its subclasses are.
+        Put that logic once in a base class method, `OpenIngressPolicy.judge()`. Each subclass only pulls the
+        port range out of its own dict shape and calls `self.judge(...)`. The base class isn't registered,
+        only its subclasses are.
     """),
-    Q("Why might `aws_db_instance` appear with actions `[\"delete\", \"create\"]` when nobody asked to delete it?",
-      "Some attribute changes force Terraform to replace the resource", "Terraform always replaces databases on apply",
-      "It's a bug in the plan file", "Delete-then-create is how Terraform updates tags"),
+    Q("What does this print?", "AWS: HIGH", "Base: HIGH", "HIGH", "An error",
+      code="""
+        class Base:
+            name = "Base"
+            def judge(self, port):
+                return "%s: %s" % (self.name, "HIGH" if port == 22 else "ok")
+
+        class AwsRule(Base):
+            name = "AWS"
+
+        print(AwsRule().judge(22))
+      """, explain="AwsRule inherits judge(); inside it, self.name finds the subclass's own value first."),
     C("""
         Write a generator function `judge(label, all_traffic, low, high, sensitive)` that mirrors
         ChangeGate's logic using plain strings:
@@ -102,8 +96,7 @@ LESSON = Lesson("p04l4", "Writing policies", [
 ], summary="""
     - A policy: class attributes (id, title, severity, resource_types, actions, default_settings) say when it
       runs; `check(change)` yields findings with remediation.
-    - Stateful resources (databases, buckets, disks) hold data code can't recreate; flag delete/replace.
-      Some edits force a replace.
-    - Tags (AWS `tags_all`/`tags`) and labels (GCP) via the provider registry; skip untaggable and unknown.
+    - Stateful deletes: a set lookup on the type plus an action check.
+    - Required tags: missing keys from a dict; skip when the tags key is absent or unknown.
     - Share judgement through a base class (`OpenIngressPolicy.judge`); subclasses adapt resource shapes.
 """)

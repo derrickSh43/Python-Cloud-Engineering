@@ -123,9 +123,20 @@ LESSON = Lesson("p03l4", "Dataclasses and type hints", [
         print(a.signature == "", signed.signature, signed.approver)
     """, explain="dataclasses.replace makes a modified COPY - the way to 'change' a frozen object. "
                  "You'll use it to sign approvals in Phase 5."),
-    Q("Why does ChangeGate make its data types frozen?",
-      "So results can't be altered after they're created", "Frozen dataclasses run faster",
-      "Python requires dataclasses to be frozen", "So they can be written to JSON"),
+    Q("What happens when this runs?",
+      "It raises dataclasses.FrozenInstanceError", "It prints HIGH", "It prints LOW",
+      "It silently ignores the assignment",
+      code="""
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class Finding:
+            severity: str
+
+        f = Finding("LOW")
+        f.severity = "HIGH"
+        print(f.severity)
+      """, explain="A frozen dataclass refuses assignment after creation. Use dataclasses.replace for a changed copy."),
     C("""
         Define a frozen dataclass `Tagged` with fields `address: str` and `tags: dict` (default: a fresh
         empty dict for each object), and a method `missing(required)` that returns the list of keys in

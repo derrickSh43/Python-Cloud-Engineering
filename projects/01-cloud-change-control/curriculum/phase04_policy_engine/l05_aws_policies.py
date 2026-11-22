@@ -1,32 +1,28 @@
 from pce.lesson import T, Ex, Q, P, C, B, Lesson
 
-LESSON = Lesson("p04l5", "AWS security policies", [
+LESSON = Lesson("p04l5", "AWS rules: lookups, nested data and edge cases", [
     T("""
-        **Public S3 buckets**
+        **What the AWS rules check**
 
-        Publicly readable S3 buckets are behind a long list of real data leaks. AWS has three overlapping
-        ways to make a bucket public, and ChangeGate checks all three:
+        Each rule is a small function over a dict of settings. You don't need to know AWS: here is the data.
 
-        - **ACLs** (`aws_s3_bucket_acl`): the canned ACLs `public-read` and `authenticated-read` let anyone
-          read; `public-read-write` lets anyone **write** too (CRITICAL - attackers host malware in it).
-        - **Public access block** (`aws_s3_bucket_public_access_block`): four switches that override ACLs and
-          policies. All four should be `true`. Turning any off is a red flag.
-        - **Bucket policies** (`aws_s3_bucket_policy`): a JSON policy; a statement that `Allow`s
-          `Principal: "*"` without a `Condition` (like "only from our VPC endpoint") is public.
+        | resource type | key(s) to read | flag when |
+        |---|---|---|
+        | `aws_s3_bucket_acl` | `acl` (a string) | it's a key of a `PUBLIC` dict (the value is the severity) |
+        | `aws_s3_bucket_public_access_block` | four boolean flags | any flag is not exactly `True` |
+        | `aws_s3_bucket_policy` | `policy` (a JSON **string**) | a statement allows principal `"*"` with no `Condition` |
+        | security group rules | `from_port`, `to_port`, `protocol`, CIDR lists | the shared `judge()` says so |
+        | `aws_ebs_volume`, `aws_db_instance`... | an encryption flag (name differs per type) | not exactly `True` |
+        | IAM policies | `policy` (JSON string) with `Action` / `Resource` | `"*"` wildcards in an `Allow` |
 
-        Note: since 2023 new buckets block public access and encrypt objects by default - but Terraform can
-        still turn those protections off, which is exactly what a plan review should catch.
+        The Python patterns repeat: dict lookups with a default, a table mapping type → key name, parsing a
+        JSON string inside JSON, and values that can be a **string or a list**.
     """),
     T("""
-        **Security groups**
+        **The `0` trap**
 
-        A security group is a stateful firewall around EC2 instances, databases and load balancers. Terraform
-        expresses ingress rules in three ways: inline `ingress` blocks on `aws_security_group`, separate
-        `aws_security_group_rule` resources (with `type = "ingress"` or `"egress"`), and the newer
-        `aws_vpc_security_group_ingress_rule` (one CIDR per rule, `cidr_ipv4` / `cidr_ipv6`).
-
-        Protocol `"-1"` means **all protocols and ports**. A missing from/to port means the full range. Watch
-        for `0` - it's a valid port number but falsy, so test `is not None`.
+        Port `0` is a valid value, but it's falsy. `rule.get("from_port") or 22` silently replaces it. Test
+        `is not None` instead.
     """),
     P("""
         rule = {"from_port": 0, "to_port": 0, "protocol": "-1"}
@@ -35,31 +31,22 @@ LESSON = Lesson("p04l5", "AWS security policies", [
         print(low, low_correct)
     """, explain="`or` treats 0 as missing and silently uses the fallback - a real bug in many scripts."),
     T("""
-        **Encryption at rest**
+        **A table instead of an if/elif chain**
 
-        If a disk or database snapshot leaks, encryption is the last line of defence, and many compliance
-        regimes require it. Each resource type names its flag differently - `aws_ebs_volume.encrypted`,
-        `aws_db_instance.storage_encrypted`, `aws_efs_file_system.encrypted` - so the policy keeps a table
-        mapping type → flag. EC2 instances have nested `root_block_device` and `ebs_block_device` blocks.
+        Each type names its encryption flag differently. Keep a dict:
 
-        Rule of thumb: treat a **missing** flag as unencrypted (the provider default may be off), but skip
-        values that are **unknown** until apply.
+        ```
+        FLAGS = {"aws_ebs_volume": "encrypted", "aws_db_instance": "storage_encrypted"}
+        flag = FLAGS.get(change.type)      # None for types the rule doesn't cover
+        ```
 
-        And `publicly_accessible = true` on an RDS database gives it a public IP - databases belong in private
-        subnets.
+        Treat a **missing** flag as off (`attrs.get(flag) is not True`), but skip values marked unknown.
     """),
     T("""
-        **IAM wildcards**
+        **String or list?**
 
-        IAM policies decide what an identity can do. `"Action": "*"` with `"Resource": "*"` is full
-        administrator access - if those credentials leak, everything is gone. ChangeGate flags:
-
-        - `"Action": "*"` → CRITICAL
-        - a service wildcard like `"s3:*"` on `"Resource": "*"` → HIGH (every action on every bucket)
-        - `Allow` + `NotAction` → HIGH: "allow everything except X" grants every action AWS ever adds later
-
-        `Deny` statements are never the problem - they only take permissions away. Remember that `Action` and
-        `Resource` may each be a string or a list: normalise with `as_list` first.
+        In an AWS policy document, `Action` may be `"s3:*"` or `["s3:GetObject", "s3:PutObject"]`. Normalise
+        first with a helper like `as_list(value)`, then loop. Only `Allow` statements matter; skip `Deny`.
     """),
     Ex("""
         import json
@@ -77,11 +64,21 @@ LESSON = Lesson("p04l5", "AWS security policies", [
             elif "*" in [st["Resource"]] and any(a.endswith(":*") for a in actions):
                 print(st["Sid"], "-> HIGH: service wildcard on every resource")
     """),
-    Q("Which S3 ACL is CRITICAL rather than HIGH in ChangeGate?", "public-read-write", "public-read",
-      "authenticated-read", "private", explain="Write access lets anyone upload content - and you pay to serve it."),
-    Q("Why is `Allow` + `NotAction: [\"iam:*\"]` dangerous?",
-      "It allows every action except IAM ones - including any added to AWS in the future",
-      "It denies all IAM actions, locking admins out", "NotAction is invalid and ignored", "It only applies to the root user"),
+    Q("What does this print?", "['s3:*']", "['s', '3', ':', '*']", "s3:*", "An error",
+      code="""
+        def as_list(value):
+            if value is None:
+                return []
+            return value if isinstance(value, list) else [value]
+
+        print(as_list("s3:*"))
+      """, explain="A lone string is wrapped in a list. Without the isinstance check, list(\"s3:*\") would split it into characters."),
+    Q("What does this print?", "['public_acls']", "[]", "['public_acls', 'block_policy']", "An error",
+      code="""
+        FLAGS = ["block_policy", "public_acls"]
+        attrs = {"block_policy": True, "public_acls": False}
+        print([f for f in FLAGS if attrs.get(f) is not True])
+      """, explain="Only values that are exactly True pass; False (and a missing flag, None) are reported."),
     C("""
         Write `unencrypted(resource_type, attrs)` returning a list of messages:
 
@@ -111,10 +108,8 @@ def unencrypted(resource_type, attrs):
     B("p4-aws-storage"),
     B("p4-aws-iam"),
 ], summary="""
-    - S3 is public via ACLs (`public-read*`, `authenticated-read`), a disabled public access block, or a bucket
-      policy allowing `Principal: "*"` without a Condition.
-    - Security groups: inline `ingress`, `aws_security_group_rule`, `aws_vpc_security_group_ingress_rule`;
-      protocol `"-1"` = everything; port 0 is falsy - use `is not None`.
-    - Encryption: per-type flag names; missing = unencrypted, unknown = skip. Public RDS = HIGH.
-    - IAM: `Action: "*"` CRITICAL, `svc:*` on `Resource: "*"` HIGH, `Allow` + `NotAction` HIGH; Deny is fine.
+    - Each AWS rule is a dict lookup plus a condition; the exercise text gives the keys and the rule.
+    - `x is not None` / `x is not True` instead of truthiness when 0 or a missing value matters.
+    - A dict maps type → key name instead of an if/elif chain.
+    - JSON strings inside JSON: `json.loads` again. Normalise string-or-list values with `as_list`.
 """)

@@ -88,8 +88,23 @@ LESSON = Lesson("p04l7", "Risk, decisions and the pipeline", [
         python -c "from changegate.evaluator import evaluate_file; e = evaluate_file('../sample_data/plans/gcp_risky.json'); print(e.risk, e.decision)"
         ```
     """),
-    Q("Findings are MEDIUM, HIGH and LOW, with 2 deletes and threshold 5. What is the risk?",
-      "HIGH", "MEDIUM", "CRITICAL", "LOW"),
+    Q("What does this print?", "HIGH", "MEDIUM", "CRITICAL", "LOW",
+      code="""
+        from enum import IntEnum
+
+        class Severity(IntEnum):
+            LOW = 1
+            MEDIUM = 2
+            HIGH = 3
+            CRITICAL = 4
+
+        findings = [Severity.MEDIUM, Severity.HIGH, Severity.LOW]
+        deletes, threshold = 2, 5
+        risk = max(findings, default=Severity.LOW)
+        if deletes >= threshold:
+            risk = Severity(min(risk + 1, Severity.CRITICAL))
+        print(risk.name)
+      """, explain="The highest severity is HIGH, and 2 deletes don't reach the threshold of 5."),
     C("""
         Write `decide(risk, approval_at=2, block_at=4)` using plain integers (1=LOW ... 4=CRITICAL) that
         returns `"block"`, `"approval"` or `"allow"`. `block_at=None` means never block.

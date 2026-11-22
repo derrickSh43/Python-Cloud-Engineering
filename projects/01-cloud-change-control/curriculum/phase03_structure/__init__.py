@@ -20,6 +20,6 @@ PHASE = Phase(
         "Define data types with frozen dataclasses and type hints",
         "Organise code in a package with relative imports and a registry",
         "Create a virtual environment, install pytest, and write tests with fixtures and parametrize",
-        "Parse a whole Terraform plan into ResourceChange objects",
+        "Turn a whole JSON plan file into ResourceChange objects",
     ],
 )

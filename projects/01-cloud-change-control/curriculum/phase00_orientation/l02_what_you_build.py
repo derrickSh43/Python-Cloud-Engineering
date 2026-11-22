@@ -1,53 +1,47 @@
-from pce.lesson import T, Q, Lesson
+from pce.lesson import T, Ex, P, Lesson
 
 LESSON = Lesson("p00l2", "What you'll build: Cloud ChangeGate", [
     T("""
-        **The problem**
+        **A Python tool for infrastructure work**
 
-        Teams change cloud infrastructure with **Terraform**. Before applying a change, Terraform produces
-        a **plan**: a list of resources it will create, update or delete. A single careless plan can open
-        SSH to the whole internet, make a storage bucket public, or delete a production database.
+        You'll write **Cloud ChangeGate**, a command-line tool of the kind infrastructure teams write all the
+        time. It reads a JSON file listing proposed infrastructure changes, checks each change against a set
+        of rules, and prints a report with an exit code a pipeline can act on.
 
-        Code review helps, but reviewers get tired and plans get long. You'll build a tool that reads
-        every plan automatically and enforces the rules before anything is applied.
+        You don't need to know Terraform or the cloud providers well. Each exercise tells you exactly what the
+        data looks like and what to check. The course is about the **Python**: reading files, walking nested
+        data, writing rules as functions and classes, testing them, and shipping a CLI.
     """),
+    Ex("""
+        changes = [
+            {"address": "aws_s3_bucket.logs", "actions": ["create"]},
+            {"address": "aws_db_instance.orders", "actions": ["delete"]},
+        ]
+        for change in changes:
+            if "delete" in change["actions"]:
+                print("FLAG ", change["address"], "is being deleted")
+            else:
+                print("ok   ", change["address"])
+    """, note="This is the whole idea in eight lines. The rest of the course grows it into a real, tested tool."),
     T("""
-        **Cloud ChangeGate, step by step**
+        **The Python you'll use, phase by phase**
 
-        1. **Parse** the Terraform plan (JSON) into Python objects.
-        2. **Evaluate** each change against modular **security policies** for AWS and GCP.
-        3. **Classify risk**: LOW, MEDIUM, HIGH or CRITICAL.
-        4. **Decide**: allow it, require approval, or block it.
-        5. **Verify approvals**: signed, tied to that exact plan, from authorised people, not expired.
-        6. **Audit**: record every decision in a tamper-evident log.
-        7. Run it all from a **command-line tool** that fits into a CI/CD pipeline.
+        - **Phase 1** - variables, strings, lists, dicts, loops, functions, reading errors.
+        - **Phase 2** - files, JSON, exceptions, comprehensions, sets, generators, hashing.
+        - **Phase 3** - classes, enums, dataclasses, packages, virtual environments and pytest.
+        - **Phase 4** - the `ipaddress` and `tomllib` modules, a plugin system with abstract classes, and
+          rules written as generators.
+        - **Phase 5** - `datetime`, `hmac`, `hashlib`, and an append-only log file.
+        - **Phase 6** - `argparse`, exit codes, `logging`, output formats, and packaging with `pyproject.toml`.
+
+        Everything runs on your machine against sample files. No cloud account is needed.
     """),
-    T("""
-        **How you'll get there**
-
-        - **Phase 1** - Python fundamentals with cloud-flavoured examples.
-        - **Phase 2** - Data and files: reading real Terraform plan JSON.
-        - **Phase 3** - Structure and testing: models, classes, packages and pytest.
-        - **Phase 4** - The policy engine and risk classification.
-        - **Phase 5** - Trust: hashing, signed approvals and the audit log.
-        - **Phase 6** - Production: the CLI, reports, packaging and CI/CD.
-
-        Everything runs on your machine against sample plans; no cloud account is needed. Connecting real
-        AWS and GCP accounts is an optional final step once the tool is finished.
-    """),
-    Q("What does a Terraform plan describe?",
-      "The changes Terraform will make to infrastructure if applied",
-      "The bill for last month's cloud usage",
-      "A list of every user in the cloud account",
-      explain="A plan is a preview: create, update, replace or delete, resource by resource."),
-    Q("A plan would delete a production database. What should ChangeGate do?",
-      "Flag it as high risk and require approval (or block it)",
-      "Apply it immediately - Terraform knows best",
-      "Ignore it because deletes are always safe",
-      explain="Destructive changes to stateful resources are exactly what change control exists for."),
+    P("""
+        actions = ["delete", "create"]
+        print("delete" in actions, len(actions))
+    """, explain="`in` checks whether a value is in the list; `len` counts the items."),
 ], summary="""
-    **Cloud ChangeGate** reads a Terraform plan and decides whether it can be applied.
-
-    parse plan → evaluate policies (AWS + GCP) → classify risk → decide (allow / approval / block)
-    → verify signed approvals → write a tamper-evident audit record → all from a CLI used in CI/CD.
+    - You'll build **Cloud ChangeGate**: a Python CLI that reads a JSON file of infrastructure changes,
+      checks them against rules, and reports with an exit code.
+    - Each exercise describes the data and the rule; the focus is the Python.
 """)

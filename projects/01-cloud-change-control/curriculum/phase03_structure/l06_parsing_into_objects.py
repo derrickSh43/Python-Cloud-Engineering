@@ -68,8 +68,11 @@ LESSON = Lesson("p03l6", "From JSON to objects", [
                    {"mode": "managed", "address": "c.z"}]
         print([e["address"] for e in entries if e.get("mode") != "data"])
     """, explain="Data sources (mode 'data') are reads, not changes - the parser skips them by default."),
-    Q("An entry has `\"after_unknown\": null`. What should `after_unknown` become?",
-      "{} - an empty dict, the same as if it were missing", "None", "It should raise PlanError", '"null"'),
+    Q("What does this print?", "{} {}", "None {}", "None None", "An error",
+      code="""
+        change = {"after_unknown": None}
+        print(change.get("after_unknown") or {}, change.get("missing") or {})
+      """, explain="`x or {}` replaces None (and anything else falsy) with an empty dict, so null and missing behave the same."),
     C("""
         Practise the pattern on a smaller shape. Write `parse_rule(entry)` that returns a tuple
         `(name, port, sources)`:

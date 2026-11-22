@@ -3,10 +3,11 @@ from pce.lesson import Q, C, Checkpoint
 CHECKPOINT = Checkpoint("p00cp", "Ready to start", """
     A quick check that you're comfortable with the app before Phase 1.
 """, [
-    Q("Which order does ChangeGate work in?",
-      "parse → policies → risk → decision → approvals → audit",
-      "audit → parse → decision → policies",
-      "approvals → parse → audit → risk"),
+    Q("What does this print?", "2", "1", "0", "An error",
+      code="""
+        changes = ["create", "delete", "delete"]
+        print(changes.count("delete"))
+      """, explain="`list.count(x)` returns how many times x appears in the list."),
     C("""
         Print these two lines, in this order:
 

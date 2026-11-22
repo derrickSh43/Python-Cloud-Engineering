@@ -15,6 +15,24 @@ from .runner import run_code
 MIN_HINTS = 2
 
 
+def quiz_code_problems(step):
+    """A question that shows code must be honest about it. When the question asks what the code prints,
+    the marked answer must be its real output. When the code raises, the marked answer must name the
+    exception."""
+    r = run_code(step["code"])
+    correct = step["correct"]
+    if r.timed_out or r.crashed:
+        return ["quiz code did not run: timeout=%s crashed=%r" % (r.timed_out, r.crashed)]
+    if r.error:
+        if not any(word in str(r.error) for word in correct.replace(":", " ").replace(".", " ").split()
+                   if word[:1].isupper() and word.endswith(("Error", "Exception", "Exit"))):
+            return ["quiz code raises %r but the correct answer doesn't name that exception" % (r.error,)]
+        return []
+    if "print" in step["question"].lower() and r.output.strip() != correct.strip():
+        return ["quiz code prints %r but the correct answer is %r" % (r.output.strip(), correct)]
+    return []
+
+
 def check_step(where, step):
     problems = []
     kind = step.get("type")
@@ -39,6 +57,8 @@ def check_step(where, step):
             problems.append("correct answer also listed as wrong")
         if len(step["wrong"]) < 1:
             problems.append("quiz has no wrong answers")
+        if step.get("code"):
+            problems += quiz_code_problems(step)
     elif kind == "code":
         v = grade(step, step["solution"])
         if not v.passed:

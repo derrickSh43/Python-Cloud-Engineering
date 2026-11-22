@@ -3,13 +3,30 @@ from pce.lesson import Q, C, Checkpoint
 CHECKPOINT = Checkpoint("p06cp", "Ship it", """
     A final check on the production habits from this phase.
 """, [
-    Q("Why does ChangeGate exit with 3, not argparse's default 2, on a usage error?",
-      "2 already means 'approval required'; a typo must not look like a policy result",
-      "3 is the POSIX standard for usage errors", "argparse can't exit with 2 on Windows", "It's arbitrary"),
-    Q("Where should a JSON report go, and where should a warning go?",
-      "Report to stdout, warning to stderr", "Both to stdout", "Both to stderr", "Report to stderr, warning to stdout"),
-    Q("Which value belongs in a GitHub secret rather than a variable?",
-      "CHANGEGATE_HMAC_KEY", "CHANGEGATE_CONFIG", "CHANGEGATE_PLANS", "CHANGEGATE_PACKAGE"),
+    Q("What does this print?", "3", "2", "0", "Nothing - the program exits",
+      code="""
+        import argparse
+
+        class Parser(argparse.ArgumentParser):
+            def error(self, message):
+                raise SystemExit(3)
+
+        parser = Parser(prog="gate")
+        parser.add_argument("count", type=int)
+        try:
+            parser.parse_args(["many"])
+        except SystemExit as e:
+            print(e.code)
+      """, explain="Overriding error() replaces argparse's default exit code 2 with 3."),
+    Q("Which stream does `print(\"warning\", file=sys.stderr)` write to?",
+      "stderr, so it stays out of a redirected report", "stdout", "A file named sys.stderr", "The log file"),
+    Q("What does this print?", "True", "False", "An error",
+      code="""
+        import os
+        os.environ["CHANGEGATE_CONFIG"] = "ci/changegate.toml"
+        path = os.environ.get("CHANGEGATE_CONFIG", "changegate.toml")
+        print(path.endswith(".toml"))
+      """, explain="Configuration comes from the environment, with a default when it isn't set."),
     C("""
         Write `run(argv)` - a miniature ChangeGate. It parses `argv` with argparse: a positional `risk`
         (choices `low`, `medium`, `high`, `critical`) and an option `--format` (choices `text`, `json`,

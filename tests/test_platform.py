@@ -114,6 +114,15 @@ def test_selftest_catches_broken_content():
     assert any("starter" in p for _, p in selftest.check_step("demo", passes_starter))
 
 
+def test_selftest_checks_code_questions():
+    def problems(step):
+        return [p for _, p in selftest.check_step("demo", step)]
+    assert problems(lesson.Q("What does this print?", "3", "2", code="print(1 + 2)")) == []
+    assert any("prints '3'" in p for p in problems(lesson.Q("What does this print?", "2", "3", code="print(1 + 2)")))
+    assert problems(lesson.Q("What happens?", "A KeyError", "1", code="{}['x']")) == []
+    assert any("doesn't name" in p for p in problems(lesson.Q("What happens?", "None", "A KeyError", code="{}['x']")))
+
+
 def test_selftest_all_projects_clean():
     assert selftest.run(projects.discover(), out=lambda *_: None) == []
 

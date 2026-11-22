@@ -65,20 +65,25 @@ LESSON = Lesson("p05l5", "A tamper-evident audit log", [
         (owner read/write, group read). Write bytes with `os.write(fd, data)` and always `os.close(fd)` in a
         `finally` block.
     """),
-    T("""
-        **Honest limits**
-
-        A hash chain proves records in the file weren't altered - but someone who can delete the **newest**
-        records leaves a shorter chain that still verifies. That's why `changegate audit verify` prints the
-        head hash (CI logs keep it) and accepts `--expect-head` to compare. For real compliance, ship records
-        to write-once storage (S3 Object Lock, GCS bucket lock) or a log platform. Knowing and documenting what
-        your security control does **not** do is part of building it.
-    """),
-    Q("An attacker edits record 5 and recomputes its hash. How is it still detected?",
-      "Record 6's prev_hash no longer matches record 5's new hash", "The timestamp changes automatically",
-      "JSON Lines files can't be edited", "It isn't detected"),
-    Q("Which tampering can the chain alone NOT detect?",
-      "Deleting the most recent records", "Editing a record in the middle", "Reordering two records", "Deleting the first record"),
+    Q("What does this print?", "[2]", "[]", "[1, 2]", "An error",
+      code="""
+        chain = [{"seq": 1, "prev_hash": "000", "hash": "aaa"},
+                 {"seq": 2, "prev_hash": "zzz", "hash": "bbb"}]
+        prev = "000"
+        broken = []
+        for record in chain:
+            if record["prev_hash"] != prev:
+                broken.append(record["seq"])
+            prev = record["hash"]
+        print(broken)
+      """, explain="Each record's prev_hash is compared with the previous record's hash; record 2 points at the wrong one."),
+    Q("What does this print?", "3 1", "1 3", "3 3", "An error",
+      code="""
+        import json
+        lines = ['{"seq": 1}', '{"seq": 2}', '{"seq": 3}']
+        records = [json.loads(line) for line in lines]
+        print(len(records), records[0]["seq"])
+      """, explain="JSON Lines: one json.loads per line gives one dict per record."),
     C("""
         Write `verify_chain(records)` that checks a list of dicts with keys `seq`, `prev_hash` and `hash`,
         where each record's `hash` must equal `digest(record)` (provided below - it hashes everything except
@@ -137,5 +142,4 @@ def digest(record):
     - Hash chain: each hash covers the record incl. prev_hash. Edits, deletions and reordering break it;
       genesis hash = 64 zeros.
     - Append-only: `os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640)`, `os.write`, close in `finally`.
-    - Limit: truncating the newest records needs an externally kept head hash (`--expect-head`) or WORM storage.
 """)

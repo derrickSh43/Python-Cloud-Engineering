@@ -1,21 +1,19 @@
 from pce.lesson import T, Ex, Q, P, C, B, Lesson
 
-LESSON = Lesson("p04l6", "Google Cloud security policies", [
+LESSON = Lesson("p04l6", "GCP rules: one question, three data shapes", [
     T("""
-        **GCP IAM in three shapes**
+        **The same data, three shapes**
 
-        Google Cloud grants **roles** to **members** (`user:alice@example.com`, `group:ops@example.com`,
-        `serviceAccount:...`). Terraform offers three resource styles for the same thing, and a policy must
-        understand all of them:
+        Google Cloud access grants come in three dict shapes, and a rule must handle all of them:
 
-        | resource | shape | behaviour |
-        |---|---|---|
-        | `*_iam_member` | `role`, `member` | adds one member to one role |
-        | `*_iam_binding` | `role`, `members: [...]` | sets the full member list for one role |
-        | `*_iam_policy` | `policy_data`: JSON string with `bindings: [{role, members}]` | replaces the whole policy |
+        | shape | where the members are |
+        |---|---|
+        | `{"role": ..., "member": "user:a@example.com"}` | one string |
+        | `{"role": ..., "members": [...]}` | a list |
+        | `{"policy_data": "<JSON string>"}` | `bindings[].members` inside a JSON string |
 
-        Two special members mean "the public": **`allUsers`** (anyone on the internet, no login) and
-        **`allAuthenticatedUsers`** (anyone with *any* Google account - effectively also the public).
+        Two member values mean "public": `allUsers` and `allAuthenticatedUsers`. Collect every member into
+        one list first, then ask your question once.
     """),
     Ex("""
         import json
@@ -37,33 +35,15 @@ LESSON = Lesson("p04l6", "Google Cloud security policies", [
             print(members(attrs))
     """),
     T("""
-        **Buckets and uniform access**
+        **The other GCP rules**
 
-        Cloud Storage buckets can control access with IAM alone (**uniform bucket-level access**) or also allow
-        per-object ACLs. With per-object ACLs, any single object can be made public on its own, which is easy
-        to miss. Google recommends `uniform_bucket_level_access = true` and
-        `public_access_prevention = "enforced"`, which blocks public grants entirely. ChangeGate rates uniform
-        access being off as MEDIUM, and notes whether public access prevention is enforced.
-    """),
-    T("""
-        **Basic roles**
-
-        `roles/owner` and `roles/editor` are GCP's **basic** (formerly "primitive") roles: they grant broad
-        access to almost every service in a project. Granting them violates **least privilege** - give people
-        and services only what their job needs, using predefined roles like `roles/storage.objectViewer`.
-        Granting *any* role on a project, folder or organization to `allUsers` is CRITICAL.
-    """),
-    T("""
-        **Firewalls and Cloud SQL**
-
-        A `google_compute_firewall` has a `direction` (default `INGRESS`), `source_ranges`, and `allow` blocks,
-        each with a `protocol` and optional `ports`. Protocol `all` - or `tcp`/`udp` with **no ports listed** -
-        means every port. Ports may be single (`"22"`) or ranges (`"8000-8090"`). Disabled rules and egress
-        rules are skipped.
-
-        Cloud SQL instances nest their network settings two blocks deep:
-        `settings[0].ip_configuration[0].authorized_networks`. An authorized network of `0.0.0.0/0` lets the
-        whole internet attempt connections. Better: private IP and the Cloud SQL Auth Proxy.
+        - **Buckets**: flag `uniform_bucket_level_access` set to `False`.
+        - **Roles**: flag grants of `roles/owner` / `roles/editor`, and any role granted to `allUsers`.
+        - **Firewalls**: `allow` is a list of dicts with `protocol` and an optional `ports` list of strings
+          like `"22"` or `"8000-8090"`. Protocol `all`, or `tcp`/`udp` with no ports, means every port.
+        - **Cloud SQL**: the setting you need is nested inside lists of one dict:
+          `settings[0]["ip_configuration"][0]["authorized_networks"]`. A helper `first_block(attrs, key)`
+          returns that first dict, or `{}` if it's missing.
     """),
     P("""
         allow = [{"protocol": "tcp", "ports": []}, {"protocol": "icmp"}, {"protocol": "tcp", "ports": ["22", "8000-8090"]}]
@@ -75,11 +55,20 @@ LESSON = Lesson("p04l6", "Google Cloud security policies", [
             else:
                 print(n, ports)
     """),
-    Q("A bucket grants `roles/storage.objectViewer` to `allAuthenticatedUsers`. Is that public?",
-      "Effectively yes - anyone with any Google account can read it", "No - only users in your organization",
-      "No - authenticated means approved by an admin", "Only if uniform access is off"),
-    Q("What does a GCP firewall `allow` block of `{\"protocol\": \"tcp\"}` with no ports mean?",
-      "All TCP ports", "No ports - the rule does nothing", "Only port 80", "Only well-known ports below 1024"),
+    Q("What does this print?", "8000 8090", "8000-8090", "['8000', '8090']", "An error",
+      code="""
+        text = "8000-8090"
+        low, _, high = text.partition("-")
+        print(int(low), int(high or low))
+      """, explain="partition splits on the first '-' into three parts. For \"22\", high is \"\" so `high or low` reuses low."),
+    Q("What does this print?", "{}", "None", "An error: list index out of range", "[]",
+      code="""
+        def first_block(attrs, key):
+            blocks = attrs.get(key) or []
+            return blocks[0] if blocks and isinstance(blocks[0], dict) else {}
+
+        print(first_block({"settings": []}, "settings"))
+      """, explain="The empty list is checked before indexing, so the helper returns {} instead of raising IndexError."),
     C("""
         Write `public_members(attrs)` that returns the **sorted** list of public members (`allUsers`,
         `allAuthenticatedUsers`) found in `attrs["member"]`, `attrs["members"]` and the bindings inside
@@ -112,10 +101,8 @@ def public_members(attrs):
     B("p4-gcp-network", intro="Reuse `self.judge(...)` for the firewall; `first_block` twice for Cloud SQL."),
     B("p4-gcp-iam"),
 ], summary="""
-    - GCP IAM resources: `*_iam_member` (member), `*_iam_binding` (members), `*_iam_policy` (policy_data JSON).
-    - `allUsers` and `allAuthenticatedUsers` both mean public.
-    - Buckets: prefer uniform bucket-level access + public access prevention "enforced".
-    - Basic roles `roles/owner`/`roles/editor` break least privilege; any role to allUsers is CRITICAL.
-    - Firewalls: `all`, or tcp/udp with no ports = every port; skip disabled/egress. Cloud SQL:
-      `settings[0].ip_configuration[0].authorized_networks` containing 0.0.0.0/0 is public.
+    - Normalise several data shapes into one list, then apply the rule once.
+    - Set intersection (`PUBLIC & set(found)`) answers "which of these appear?".
+    - `str.partition("-")` parses `"22"` and `"8000-8090"` alike.
+    - Guard nested `[0]` lookups with a helper that returns `{}` when the list is empty.
 """)

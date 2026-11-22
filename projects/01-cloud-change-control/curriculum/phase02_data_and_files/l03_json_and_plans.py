@@ -33,7 +33,7 @@ MINI_PLAN = '''{
   ]
 }'''
 
-LESSON = Lesson("p02l3", "JSON and the Terraform plan format", [
+LESSON = Lesson("p02l3", "JSON and nested data", [
     T("""
         **JSON**
 
@@ -90,10 +90,10 @@ LESSON = Lesson("p02l3", "JSON and the Terraform plan format", [
             print(isinstance(json.loads(text), dict))
     """),
     T("""
-        **Inside a Terraform plan**
+        **The file ChangeGate reads**
 
-        After `terraform plan -out=plan.tfplan`, the command `terraform show -json plan.tfplan > plan.json`
-        writes JSON shaped like this (trimmed):
+        ChangeGate's input is a JSON file (Terraform produces it with `terraform show -json`). You only need
+        its shape:
 
         ```
         {
@@ -102,24 +102,19 @@ LESSON = Lesson("p02l3", "JSON and the Terraform plan format", [
             {
               "address": "aws_db_instance.orders",
               "type": "aws_db_instance",
-              "provider_name": "registry.terraform.io/hashicorp/aws",
               "change": {
                 "actions": ["delete", "create"],
                 "before": {...},
-                "after": {...},
-                "after_unknown": {...}
+                "after": {...}
               }
             }
           ]
         }
         ```
 
-        - `format_version` - the version of this JSON layout. ChangeGate supports `1.x`.
-        - `resource_changes` - one entry per resource.
-        - `actions` - `["create"]`, `["update"]`, `["delete"]`, `["no-op"]`, or `["delete", "create"]`
-          for a **replacement**.
-        - `before` / `after` - the attributes before and after (`null` when the resource doesn't exist on
-          that side). `after_unknown` marks values Terraform can't know until apply, like a new ARN.
+        A dict with a list of dicts inside, each holding another dict. `actions` is a list of strings;
+        `["delete", "create"]` is called a **replacement**. `before` / `after` are dicts of settings, or
+        `null` (`None`) when there's nothing on that side.
     """),
     Ex("""
         import json
@@ -129,9 +124,11 @@ LESSON = Lesson("p02l3", "JSON and the Terraform plan format", [
         for rc in plan["resource_changes"]:
             print(rc["address"], rc["change"]["actions"])
     """, files={"plan.json": MINI_PLAN}),
-    Q("A plan entry has `\"actions\": [\"delete\", \"create\"]`. What will Terraform do?",
-      "Destroy the resource and create a new one (a replacement)", "Nothing - they cancel out",
-      "Update the resource in place", "Create it, then delete it again"),
+    Q("What does this print?", "True", "False", "An error",
+      code="""
+        actions = ["create", "delete"]
+        print(set(actions) == {"delete", "create"})
+      """, explain="Sets ignore order, so two sets with the same items are equal."),
     C("""
         A file `plan.json` is in your working folder. Load it, and for each resource change print its
         address and whether it is a replacement:
@@ -156,6 +153,6 @@ LESSON = Lesson("p02l3", "JSON and the Terraform plan format", [
     - `json.loads(text)` parses; `json.dumps(value, indent=2)` writes. Errors: `json.JSONDecodeError`
       with `.lineno`, `.colno`, `.msg`.
     - `isinstance(value, dict)` checks shape; `isinstance(x, (int, float))` accepts several types.
-    - A plan: `format_version`, `resource_changes[]` each with `address`, `type`, `provider_name`,
-      `change.actions`, `change.before/after/after_unknown`. `["delete", "create"]` = replace.
+    - The plan file: `format_version`, then `resource_changes[]`, each with `address`, `type` and
+      `change.actions` / `change.before` / `change.after`. Compare action lists as sets.
 """)

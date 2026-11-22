@@ -93,9 +93,13 @@ LESSON = Lesson("p05l2", "Secrets and signatures", [
     Q("Why use `hmac.compare_digest` instead of `==` for signatures?",
       "It takes the same time wherever the strings differ, so timing reveals nothing",
       "It's faster", "== doesn't work on hex strings", "It also checks the key"),
-    Q("Where should ChangeGate's signing key be stored?",
-      "In a secret store, injected as an environment variable", "In changegate.toml", "In the source code as a constant",
-      "In the approval file next to the signature"),
+    Q("`CHANGEGATE_HMAC_KEY` is not set. What does this print?", "None", "''", "An error: KeyError", "CHANGEGATE_HMAC_KEY",
+      code="""
+        import os
+        os.environ.pop("CHANGEGATE_HMAC_KEY", None)
+        print(os.environ.get("CHANGEGATE_HMAC_KEY"))
+      """, explain="`.get` returns None for a missing variable, so the code can stop with a clear error. "
+                   "`os.environ[\"...\"]` would raise KeyError instead."),
     C("""
         Write `sign(message, key)` returning the HMAC-SHA256 hex digest of the bytes `message` with the bytes
         `key`, and `verify(message, key, signature)` returning whether `signature` matches, using

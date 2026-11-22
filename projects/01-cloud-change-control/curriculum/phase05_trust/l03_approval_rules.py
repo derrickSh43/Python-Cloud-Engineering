@@ -2,41 +2,28 @@ from pce.lesson import T, Ex, Q, P, C, B, Lesson
 
 LESSON = Lesson("p05l3", "Rules for a trustworthy approval", [
     T("""
-        **What can go wrong with an approval?**
+        **A chain of checks that returns the first problem**
 
-        Think like an attacker - or just a tired colleague:
+        `approval_problem()` runs a list of checks **in order** and returns the first failure as a message,
+        or `None` when the approval is valid. The pattern is one `if ... return` per check:
 
-        - The file was **edited** after signing (approver changed, expiry pushed out).
-        - It approves a **different plan** - last week's harmless one.
-        - It's **old**: approved before the weekend, used on Monday after the plan changed.
-        - Its timestamp is in the **future**, to dodge expiry checks.
-        - The **author approves their own change** - defeating the point of review.
-        - It's from someone **not authorised** to approve.
-        - It approved a MEDIUM-risk plan, but new policy settings now rate the same plan HIGH.
-        - The same person approved **twice** to satisfy a two-approver rule.
+        1. the signature doesn't verify
+        2. the plan hash doesn't match
+        3. issued in the future (beyond a small tolerance)
+        4. expired
+        5. too old
+        6. the approver is the change's author
+        7. the approver isn't on the allowed list
+        8. it was signed for a lower risk level than the plan has now
 
-        Each of these becomes one check.
+        The signature comes first because the other fields can't be trusted until it verifies.
     """),
     T("""
-        **Order matters: trust nothing until the signature checks out**
+        **Comparing names**
 
-        The first check must be the signature. Until it verifies, every field in the file - the approver's
-        name, the times, the plan hash - is just text an attacker could have typed. Checking "is the approver
-        on the list?" first would leak information and, worse, invites code that acts on unverified data.
-
-        ChangeGate's `approval_problem()` returns the **first** problem as a message (or `None` if the
-        approval is valid), in this order: signature → plan hash → future timestamp → expired → too old →
-        self-approval → approver list → risk level.
-    """),
-    T("""
-        **Separation of duties**
-
-        "Authors cannot approve their own change" is called **separation of duties**: one person can't both
-        make and authorise a risky change. It protects against mistakes as much as malice. ChangeGate gets
-        the author from `--author` or `$CHANGEGATE_AUTHOR` (in CI, the person who opened the pull request).
-
-        Identities are compared **case-insensitively** after stripping spaces - `Alice` and `alice ` are the
-        same person - using `str.casefold()`, a more thorough `lower()` for comparisons.
+        `Alice` and `alice ` should count as the same person. Strip spaces and compare with
+        `str.casefold()`, a more thorough `lower()` meant for comparisons. The author's name comes from
+        `--author` or the `CHANGEGATE_AUTHOR` environment variable.
     """),
     Ex("""
         def same_identity(a, b):
@@ -46,21 +33,16 @@ LESSON = Lesson("p05l3", "Rules for a trustworthy approval", [
         print("Straße".lower(), "Straße".casefold())
     """),
     T("""
-        **Clock skew**
+        **A tolerance with timedelta**
 
-        Two computers' clocks are never exactly in sync. An approval signed on a laptop whose clock runs a
-        minute fast would look "issued in the future" to a CI runner. So the future-timestamp check allows a
-        small tolerance - `CLOCK_SKEW = timedelta(minutes=5)` - and only rejects times beyond it.
-    """),
-    T("""
+        Machine clocks drift a little, so "issued in the future" allows `CLOCK_SKEW = timedelta(minutes=5)`:
+        reject only when `issued_at > now + CLOCK_SKEW`.
+
         **Counting approvals**
 
-        `check_approvals()` uses `approval_problem()` on every approval and then:
-
-        - ALLOW decisions need nothing; BLOCK decisions can **never** be approved - a block means "fix the plan".
-        - The number required depends on the risk (`[approvals.required]`, e.g. HIGH needs 2).
-        - Valid approvals count **once per person**.
-        - Every rejected approval is explained, so the report can say exactly why the gate is still closed.
+        `check_approvals()` calls `approval_problem()` on each approval, keeps the valid ones, counts each
+        person **once**, and compares the count with the number required for the risk level. ALLOW needs
+        none, and a BLOCK decision is never unlocked by approvals.
     """),
     P("""
         approved_by = []
@@ -71,12 +53,24 @@ LESSON = Lesson("p05l3", "Rules for a trustworthy approval", [
                 approved_by.append(who)
         print(approved_by)
     """),
-    Q("Why is the signature checked before the approver list?",
-      "Until the signature verifies, every field might be forged, so nothing else should be trusted",
-      "Signature checks are faster", "The approver list might be empty", "It doesn't matter which comes first"),
-    Q("A plan is BLOCKED. Three managers approve it. What does ChangeGate do?",
-      "Still blocks it - approvals can't override a block", "Allows it - three is more than two",
-      "Allows it only if one approver is an admin", "Downgrades the risk to HIGH"),
+    Q("What does this print?", "expired", "not an approver", "None", "expired not an approver",
+      code="""
+        def problem(approval):
+            if approval["expired"]:
+                return "expired"
+            if approval["who"] not in ("alice", "bob"):
+                return "not an approver"
+            return None
+
+        print(problem({"who": "mallory", "expired": True}))
+      """, explain="The function returns at the first failing check, so later checks never run."),
+    Q("What does this print?", "True", "False", "An error",
+      code="""
+        def same(a, b):
+            return a.strip().casefold() == b.strip().casefold()
+
+        print(same(" Alice", "ALICE "))
+      """),
     C("""
         Write `first_problem(approval, now, approvers, author)` where `approval` is a dict with `approver`,
         `issued_at` and `expires_at` (aware datetimes). Return the first problem as a string, or `None`:
@@ -117,9 +111,7 @@ def first_problem(approval, now, approvers, author):
     B("p5-approval-rules"),
     B("p5-check-approvals"),
 ], summary="""
-    - Threats: edits, wrong plan, old/future approvals, self-approval, unauthorised approvers,
-      changed risk, duplicate approvers.
-    - Verify the signature first; until then nothing in the approval is trusted.
-    - Separation of duties: authors can't approve their own change. Compare identities with `strip().casefold()`.
-    - Allow small clock skew. BLOCK can never be approved. Count each approver once; explain every rejection.
+    - A validation chain: one `if ... return message` per check, in order; `return None` at the end.
+    - Compare identities with `strip().casefold()`.
+    - Tolerances with `timedelta`. Count each approver once with a set of casefolded names.
 """)

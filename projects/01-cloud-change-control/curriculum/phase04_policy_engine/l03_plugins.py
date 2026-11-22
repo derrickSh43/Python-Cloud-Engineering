@@ -150,9 +150,23 @@ LESSON = Lesson("p04l3", "A plugin framework", [
 
         print(list(run([("ok", ok), ("broken", broken), ("ok-again", ok)], "sg-1")))
     """, note="`yield from other()` re-yields everything another generator produces."),
-    Q("A policy's `check` raises an exception on unusual data. What should a security gate do?",
-      "Report a CRITICAL finding so the plan is blocked until someone investigates",
-      "Skip that policy and carry on", "Crash the whole run with a traceback", "Treat the change as safe"),
+    Q("What does this print?", "3", "2", "1", "It crashes with KeyError",
+      code="""
+        def run(checks):
+            for check in checks:
+                try:
+                    yield from check()
+                except Exception as e:
+                    yield "CRITICAL: %s" % type(e).__name__
+
+        def ok():
+            yield "ok"
+
+        def broken():
+            raise KeyError("ingress")
+
+        print(len(list(run([ok, broken, ok]))))
+      """, explain="The broken check becomes one CRITICAL item instead of crashing, so the run still produces three."),
     C("""
         Build a mini framework:
 

@@ -70,9 +70,16 @@ LESSON = Lesson("p05l4", "Approval files", [
                 problems.append(name)
         print(results, problems)
     """),
-    Q("An approvals folder has 3 valid files and 1 corrupt one. What should loading do?",
-      "Return the 3 approvals and report a problem for the corrupt file",
-      "Raise an error and load nothing", "Ignore the corrupt file silently", "Count the corrupt file as half an approval"),
+    Q("What does this print?", "2 1", "3 0", "0 1", "It crashes with ValueError",
+      code="""
+        values, problems = [], []
+        for text in ["5", "five", "7"]:
+            try:
+                values.append(int(text))
+            except ValueError:
+                problems.append(text)
+        print(len(values), len(problems))
+      """, explain="The try/except is inside the loop, so one bad item is recorded and the loop carries on."),
     C("""
         Write `load_all(folder)` that reads every `*.json` file in `folder` (sorted by name) and returns
         `(values, problems)`: `values` is the list of each file's `"approver"` value; `problems` lists

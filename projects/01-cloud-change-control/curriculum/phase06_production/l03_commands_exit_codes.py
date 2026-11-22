@@ -88,9 +88,21 @@ LESSON = Lesson("p06l3", "Commands, exit codes and logging", [
         log.info("loaded %d policies", 14)
         log.warning("no approvers configured")
     """, note="This example logs to stdout so you can see it; ChangeGate logs to stderr."),
-    Q("A CI step runs `changegate verify plan.json` and it exits with 2. What happens and why?",
-      "The step fails, so the pipeline stops until approvals are added", "The step passes: 2 means approved",
-      "CI retries the step twice", "Nothing - CI ignores exit codes"),
+    Q("What does this print?", "error", "verify", "2", "It crashes with KeyError",
+      code="""
+        def cmd_verify(args):
+            return 2
+
+        COMMANDS = {"verify": cmd_verify}
+
+        def main(command):
+            try:
+                return COMMANDS[command](None)
+            except KeyError:
+                return "error"
+
+        print(main("verfy"))
+      """, explain="The misspelt command isn't a key in the dict, so the KeyError is caught."),
     C("""
         Write `main(argv)` for a tiny tool. It parses `argv` with a parser that has one positional `count`
         (an int) - use a parser whose `error()` exits with code 3. Then:

@@ -4,6 +4,19 @@ The curriculum was designed by starting from the finished tool and asking, for e
 "what must a learner be able to do to write this themselves?" Every skill below is taught before the
 exercise that needs it.
 
+## Content principle: the course teaches Python
+
+The audience is infrastructure and cloud engineers who want to write better tooling, not to learn
+Terraform or system design from this course. So:
+
+- **Questions test Python.** A question shows code and asks what it prints or raises, or asks about a
+  Python feature. No quizzes on Terraform behaviour, cloud services or security theory. The selftest
+  runs every question's code and checks that the marked answer matches.
+- **Domain knowledge lives in the task, not the test.** When an exercise needs a fact ("a replacement is
+  `["delete", "create"]`", "`allUsers` means public"), the task states it as part of the data spec.
+- **Explanations stay short** and describe the data's shape and the rule to code, not the background.
+- Infra-flavoured data (resource names, ports, tags, plan JSON) is kept as the material the code works on.
+
 ## Components → skills → phase
 
 | Component (reference file) | What it does | Skills it needs | Taught in | Built in |
@@ -31,15 +44,15 @@ exercise that needs it.
 | `report.py` | human/machine output | string formatting, JSON output, Markdown tables | 6 | 6 |
 | `cli.py` | the tool | `argparse` subcommands, exit codes, `logging`, `sys.exit`, stdout vs stderr | 6 | 6 |
 | packaging | `changegate` command | `pyproject.toml`, entry points, `pip install -e` | 6 | 6 |
-| CI (offline) | gate every PR | GitHub Actions, running tests and the gate in CI | 6A | 6A |
+| CI (offline) | gate every PR | `subprocess.run`, exit codes, keeping the worst result; the provided CI template | 6A | 6A |
 | Cloud (optional) | real plans | `terraform plan`/`show -json`, OIDC/Workload Identity, environments | 6B | 6B |
 
 ## Phase outcomes
 
-- **Phase 0 - Orientation.** Use the app; describe ChangeGate.
+- **Phase 0 - Orientation.** Use the app; see the tool you'll build and the Python each phase covers.
 - **Phase 1 - Python fundamentals.** Write small programs with variables, decisions, loops, collections and
   functions, using resource names, tags, ports and regions as the examples.
-- **Phase 2 - Data and files.** Load and navigate a real Terraform plan; handle bad input with clear errors.
+- **Phase 2 - Data and files.** Load and navigate nested JSON from a real plan file; handle bad input with clear errors.
 - **Phase 3 - Structure and testing.** Model plan data with dataclasses and enums; organise a package;
   write pytest tests.
 - **Phase 4 - Policy engine.** Build pluggable policies for AWS and GCP, config loading, risk and decisions.

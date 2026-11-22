@@ -13,6 +13,6 @@ PHASE = Phase(
     outcomes=[
         "Move through lessons, answer questions and solve exercises in the app",
         "Use graduated hints without giving away the answer",
-        "Describe what Cloud ChangeGate does and why each part exists",
+        "Describe the Python tool you'll build and the skills each phase covers",
     ],
 )
